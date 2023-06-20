@@ -59,9 +59,9 @@ output_dir = 'cv_output'
 threadsave=8 #number of threads NOT allocated when running
 boundflag=1
 t_rgb_dist = 8
-t_hue_dist = 12 #12
+#t_hue_dist = 12 #12
 t_red_dist = 12
-t_red_cutoff = 0.1 #fraction of the chunked image that must be more blue than red to be binned
+#t_red_cutoff = 0.1 #fraction of the chunked image that must be more blue than red to be binned
 t_color_match_count = 0.000225 #fraction of image that must look like monolayers
 k = 4
 t_min_cluster_pixel_count = 30*(k/4)**2  # flake too small
@@ -83,15 +83,6 @@ def run_file_wrapped(filepath):
     tok = time.time()
     print(f"{filepath[0]} - {tok - tik} seconds")
 
-def rgbfunc(rgbarr):
-    red=rgbarr[0]
-    green=rgbarr[1]
-    blue=rgbarr[2]
-    rval=int(round(0.8643*red-2.55,0))
-    gval=int(round(0.8601*green+9.6765,0))
-    bval=blue+2
-    #print('coloring')
-    return np.array([rval,gval,bval])
 def run_file(img_filepath,outputdir,scanposdict,dims):
     tik = time.time()
     img0 = cv2.imread(img_filepath)
@@ -100,14 +91,12 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     pixcal=1314.08/w #microns/pixel from Leica calibration
     pixcals=[pixcal,876.13/h]
     img_pixels = img.copy().reshape(-1, 3)
-    lowlim=np.array([108,100,99])#p.array([87,100,99]) #3 below minimum RGB ever seen on chip, defines what it sees as background
-    highlim=np.array([140,165,135])#np.array([114,135,115[) #3 above max RGB ever seen on chip
+    lowlim=np.array([108,100,99])#defines lower limit for what code can see as background
+    highlim=np.array([140,165,135])
     imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1,3)
-    #test=np.sign(img_pixels-lowlim)+np.sign(highlim-img_pixels)
-    #pixout=img_pixels*np.sign(test+abs(test)) #chooses pixels between provided limits
     test=np.sign(imsmall-lowlim)+np.sign(highlim-imsmall)
-    pixout=imsmall*np.sign(test+abs(test)) #chooses pixels between provided limits
-    if len(pixout)==0:
+    pixout=imsmall*np.sign(test+abs(test)) #chooses pixels between provided limits, quickly filtering to potential background pixels
+    if len(pixout)==0: #making sure background is identified
         #print('Pixel failed')
         return
     reds=np.bincount(pixout[:,0])
@@ -120,11 +109,11 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     reddest=reds.argmax()
     greenest=greens.argmax()
     bluest=blues.argmax()
-    backrgb=[reddest,greenest,bluest]
+    backrgb=[reddest,greenest,bluest] #defining background color
     #print(backrgb)
     avg_rgb=rgbfunc(backrgb) #calculates monolayer color based on background color
     #print(backrgb,avg_rgb)
-    rgb_pixel_dists = np.sqrt(np.sum((img_pixels - avg_rgb) ** 2, axis=1))
+    rgb_pixel_dists = np.sqrt(np.sum((img_pixels - avg_rgb) ** 2, axis=1)) #calculating distance between each pixel and predicted flake RGB
     # rgb_t_count = np.sum(rgb_pixel_dists < t_rgb_dist)
     
     #hsv_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
@@ -133,7 +122,7 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     #hue_t_count = np.sum(hue_pixel_dists < t_hue_dist)
 
     #img_mask = np.logical_and(hue_pixel_dists < t_hue_dist, rgb_pixel_dists < t_rgb_dist)
-    img_mask= np.logical_and(rgb_pixel_dists < t_rgb_dist,reddest-img_pixels[:,0]>5)
+    img_mask= np.logical_and(rgb_pixel_dists < t_rgb_dist,reddest-img_pixels[:,0]>5) #masking the image to only the pixels close enough to predicted flake color
     # Show how many are true, how many are false.
     t_count = np.sum(img_mask)
     # print(t_count)
@@ -150,7 +139,7 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     img2_mask_in[~img_mask] = np.array([0, 0, 0])
     img2_mask_in = img2_mask_in.reshape(img.shape)
 
-    # DB SCAN
+    # DB SCAN, fitting to find clusters of correctly colored pixels
     dbscan_img = cv2.cvtColor(img2_mask_in, cv2.COLOR_RGB2GRAY)
     dbscan_img = cv2.resize(dbscan_img, dsize=(256 * k, 171 * k))
     # db = DBSCAN(eps=2.0, min_samples=6, metric='euclidean', algorithm='auto', n_jobs=-1)
@@ -252,13 +241,9 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     if not boxes_merged:
         return
     
-    # Make patches
+    # Make patches out of clusters
     wantshape=(int(int(img.shape[1])*scale),int(int(img.shape[0])*scale))
     bscale=wantshape[0]/(256*k) #need to scale up box from dbscan image
-    # patches = [
-        # Rectangle((int((int(b.x) - 10)*bscale), int((int(b.y) - 10)*bscale)), int((int(b.width) + 20)*bscale), int((int(b.height) + 20)*bscale), linewidth=2, edgecolor='r', facecolor='none') for b
-        # in boxes_merged
-    # ]
     offset=5
     patches = [
         [int((int(b.x) - offset)*bscale), int((int(b.y) - offset)*bscale), int((int(b.width) + 2*offset)*bscale), int((int(b.height) + 2*offset)*bscale)] for b
@@ -266,10 +251,8 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     ]
     print('patched')
     color=(0,0,255)
-    color2=(0,255,0)
     thickness=6
     logger=open(outputdir+"Color Log.txt","a+")
-    poscount=1#0
     splits=img_filepath.split("Stage")
     imname=splits[1]
     num=int(os.path.splitext(imname)[0])
@@ -293,15 +276,14 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
         x_max = int(p[1]+p[3]-2*offset*bscale/3) #note that the offsets cancel here
         print(x_min,y_min,x_max,y_max)
         bounds=[max(0,p[1]),min(p[1]+p[3],int(h)),max(0,p[0]),min(p[0]+p[2],int(w))]
-        #imchunk=img[x_min:x_max,y_min:y_max]#[pix for pix in dbscan_img2 if (pix[0]>=x.min() and pix[0]<=x.max() and pix[1]>=y.min() and pix[1]<=y.max())]
-        imchunk=img[bounds[0]:bounds[1],bounds[2]:bounds[3]]
-        flakergb,indices,farea=edgefind(imchunk,avg_rgb,pixcals)
+        imchunk=img[bounds[0]:bounds[1],bounds[2]:bounds[3]] #identifying bounding box of flake
+        flakergb,indices,farea=edgefind(imchunk,avg_rgb,pixcals) #calculating border pixels
         print('Edge found')
         xarr=[]
         yarr=[]
         width=round(p[2]*pixcal,1)
         height=round(p[3]*pixcal,1) #microns
-        img3=cv2.rectangle(img0,(p[0],p[1]),(p[0]+p[2],p[1]+p[3]),color,thickness)
+        img3=cv2.rectangle(img0,(p[0],p[1]),(p[0]+p[2],p[1]+p[3]),color,thickness) #creating the output images
         img3 = cv2.putText(img3, str(height), (p[0]+p[2]+10,p[1]+int(p[3]/2)), cv2.FONT_HERSHEY_SIMPLEX,1, (0,0,0), 2, cv2.LINE_AA)
         img3 = cv2.putText(img3, str(width), (p[0],p[1]-10), cv2.FONT_HERSHEY_SIMPLEX,1, (0,0,0), 2, cv2.LINE_AA)
         if boundflag==1:
@@ -317,10 +299,6 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
                 yarr.append(indy)
         logstr=str(num)+','+str(farea)+','+str(flakergb[0])+','+str(flakergb[1])+','+str(flakergb[2])+','+str(backrgb[0])+','+str(backrgb[1])+','+str(backrgb[2])
         logger.write(logstr+'\n')
-        #poscount=poscount+1
-        #logger.write(logstr+'\n')
-    #logger.close()
-    
     logger.close()
 
     cv2.imwrite(os.path.join(outputdir, os.path.basename(img_filepath)),img3)
@@ -329,7 +307,7 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     
     tok = time.time()
     print(f"{img_filepath} - {tok - tik} seconds")
-def edgefind(imchunk,avg_rgb,pixcals):
+def edgefind(imchunk,avg_rgb,pixcals): #this identifies the edges of flakes, resource-intensive but useful for determining if flake ID is working
     pixcalw=pixcals[0]
     pixcalh=pixcals[1]
     edgerad=20
@@ -338,16 +316,15 @@ def edgefind(imchunk,avg_rgb,pixcals):
     dims=np.shape(imchunk)
     flakeid=np.sqrt(np.sum((impix - avg_rgb) ** 2, axis=1))<t_rgb_dist #a mask for pixel color
     maskpic=np.reshape(flakeid,(dims[0],dims[1],1))
-
     freds=np.bincount(impix[:,0]*flakeid)
     fgreens=np.bincount(impix[:,1]*flakeid)
     fblues=np.bincount(impix[:,2]*flakeid)
     freds[0]=0 #otherwise argmax finds values masked to 0 by flakeid
     fgreens[0]=0
     fblues[0]=0
-    freddest=freds.argmax()
+    freddest=freds.argmax() #determines flake RGB as the most common R,G,B value in identified flake region
     fgreenest=fgreens.argmax()
-    fbluest=fblues.argmax() #assuming we're good at finding flakes...
+    fbluest=fblues.argmax() 
     rgb=[freddest,fgreenest,fbluest]
 
     flakeid2=np.sqrt(np.sum((impix - rgb) ** 2, axis=1))<5 #a mask for pixel color
@@ -360,57 +337,18 @@ def edgefind(imchunk,avg_rgb,pixcals):
          dist=np.min(np.sum((indices-index) ** 2, axis=1))
          if dist>3 and dist<20:
             indices3.append(index)#borders
-    # center=np.array([int(np.shape(imchunk)[0]/2),int(np.shape(imchunk)[1]/2)])
-    # steps=10
-    # thetas=np.linspace(0,np.pi,num=steps)
-    # indices4=np.array(indices3)-center
-    # radii=np.zeros((len(thetas),2))    
-    # for index in indices4:
-        # if index[1]-center[1]>0:
-                # theta=np.arctan(index[0]/index[1]) #0 to pi/2
-                # if theta<0:
-                    # theta=theta+2*np.pi #3pi/2 to 2pi
-        # elif index[1]-center[1]<0:
-                # theta=np.arctan(index[0]/index[1])+np.pi #pi/2 to 3pi/2
-        # else:
-            # theta=np.pi/2
-        
-        # k=0
-        # while k<len(thetas):
-            # if abs(theta-thetas[k])<np.pi/steps:
-                # posrad=np.sqrt(np.sum((index - center) ** 2))
-                # if radii[k][0]==0:
-                    # radii[k][0]=posrad
-                # elif posrad<radii[k][0]:
-                    # radii[k][0]=posrad
-                # print(k,thetas[k],theta,posrad)
-            # elif abs(thetas[k]+np.pi-theta)<np.pi/steps: #steps+k is always pi away from steps
-                # negrad=np.sqrt(np.sum((index - center) ** 2))
-                # if radii[k][1]==0:
-                    # radii[k][1]=negrad
-                # elif negrad<radii[k][1]:
-                    # radii[k][1]=negrad
-                # print(k,theta,negrad)
-            # k=k+1
-    # print('radius')
-    # radsum=np.sum(radii,axis=1)
-    # radmax=0
-    # radind=0
-    # while k<len(radsum):
-        # radius=radsum[k]
-        # if radius>radmax:
-            # radmax=radius
-            # radind=k
-        # k=k+1
-    # length=radmax
-    # if int(radind+steps/2)<len(thetas):
-        # width=radsum[int(radind+steps/2)]
-    # else:
-        # width=radsum[int(radind-steps/2)]
-    # print(radii,radsum,length,width)
     print('boundary found')    
     return rgb,indices3,farea
-def dimget(inputdir):
+def rgbfunc(rgbarr): #outputs flake color based on input background color, values determined empirically
+    red=rgbarr[0]
+    green=rgbarr[1]
+    blue=rgbarr[2]
+    rval=int(round(0.8643*red-2.55,0))
+    gval=int(round(0.8601*green+9.6765,0))
+    bval=blue+4
+    #print('coloring')
+    return np.array([rval,gval,bval])
+def dimget(inputdir): #finds scan size from microscope file
         filename=inputdir+"/leicametadata/TileScan_001.xlif"
         try:
             with open(filename,'r') as file:
@@ -441,7 +379,7 @@ def dimget(inputdir):
             return np.max(xarr)+1,np.max(yarr)+1
         except:
             return 1,1
-def posget(inputdir):
+def posget(inputdir): #finds image location from microscope file
     filename=inputdir+"/leicametadata/TileScan_001.xlif"
     print(filename)
     posarr=[]
@@ -450,8 +388,6 @@ def posget(inputdir):
         rawdata2=rawdata.partition('</Attachment>')
         rawdata=rawdata2[0]
         size=len(rawdata)
-        xarr=[]
-        yarr=[]
         while size>10:
                 rawdata2=rawdata.partition('FieldX="')
                 rawdata=rawdata2[2]
@@ -486,7 +422,7 @@ def location(m,dimset):
 def plotmaker(mlist,dims,directory):
     imx=1314.09/1000
     imy=875.89/1000 #mm
-    parr=[]
+    #parr=[]
     plt.figure(figsize=(18,18))
     print(mlist)
     for m in mlist:
@@ -494,7 +430,7 @@ def plotmaker(mlist,dims,directory):
         print(x,y,maxy,maxx)
         plt.scatter(x*imx,y*imy)
         plt.text(x*imx, y*imy+.03, m, fontsize=9)
-        parr.append([m,round(x*imx,1),round(y*imy,1)])
+        #parr.append([m,round(x*imx,1),round(y*imy,1)])
     boundx=[0,maxx*imx,maxx*imx,0,0]
     boundy=[0,0,maxy*imy,maxy*imy,0]
     plt.plot(boundx,boundy)
@@ -503,7 +439,6 @@ def plotmaker(mlist,dims,directory):
     plt.grid(color = 'green', linestyle = '--', linewidth = 0.5)
     plt.savefig(directory+"coordmap.jpg")
     plt.close()
-    return parr
 def main(args):
     inputfile=args.q
     file1=open(str(inputfile))
@@ -527,8 +462,6 @@ def main(args):
         files = [f for f in files if "Stage" in f]
         files.sort(key=len)
         # Filter files to only have images.
-        
-        
         #smuggling outputloc into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
         dims=dimget(input_dir)
         n_proc = os.cpu_count()-threadsave #config.jobs if config.jobs > 0 else 
@@ -555,7 +488,7 @@ def main(args):
         f.write('t_rgb_dist='+str(t_rgb_dist)+'\n')
         #f.write('t_hue_dist='+str(t_hue_dist)+'\n')
         f.write('t_red_dist='+str(t_red_dist)+'\n')
-        f.write('t_red_cutoff='+str(t_red_cutoff)+'\n')
+        #f.write('t_red_cutoff='+str(t_red_cutoff)+'\n')
         f.write('t_color_match_count='+str(t_color_match_count)+'\n')
         f.write('t_min_cluster_pixel_count='+str(t_min_cluster_pixel_count)+'\n')
         f.write('t_max_cluster_pixel_count='+str(t_max_cluster_pixel_count)+'\n')
@@ -578,7 +511,7 @@ def main(args):
         numlist=np.sort(np.array(numlist))
         for number in numlist:
             flist.write(str(number)+"\n")
-        parr=plotmaker(numlist,dims,outputloc)
+        plotmaker(numlist,dims,outputloc) #creating cartoon for file
         flist.close()
         #print(outputloc+"Color Log.txt")
         N,A,Rf,Gf,Bf,Rw,Gw,Bw=np.loadtxt(outputloc+"Color Log.txt", skiprows=1,delimiter=',',unpack=True)
