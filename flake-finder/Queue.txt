@@ -1,0 +1,1 @@
+InputDir: C:\Elijah\05_04_23_EC_2\Scan 003\TileScan_001, OutputDir: C:\Elijah\05_04_23_EC_2\MLScanned\
