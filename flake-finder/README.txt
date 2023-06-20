@@ -17,6 +17,8 @@ The OutputDir will be created if it does not exist, and a Summary.txt file of pe
 Performance ~1-10s per 20 megapixel file at scale=1, k=4 on the Leica computer, depending on how many filter steps the image passes
 
 ## Parameters
+* 'threadsave' : how many logical processors the program does NOT use on your CPU. Can reduce to improve computer usability while program is running at cost of runtime
+* 'boundflag' : 0/1 to turn off/on a function that calculates flake area and border pixels. Processing intensive but gives useful feedback to both user and developer
 * `k`: scale factor for the image before performing DB scan. Currently set to 4, imscale = (256*k,171*k) - for full 20MP resolution, k=21
 Beyond this you'll need to mess with the epsilon parameter of DBScan.
 * `t_rgb_dist`: Initial pixel thresholding. Pixels have to be within euclidian distance (radius) of RGB value to be included in DB scan

@@ -277,7 +277,7 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
         print(x_min,y_min,x_max,y_max)
         bounds=[max(0,p[1]),min(p[1]+p[3],int(h)),max(0,p[0]),min(p[0]+p[2],int(w))]
         imchunk=img[bounds[0]:bounds[1],bounds[2]:bounds[3]] #identifying bounding box of flake
-        flakergb,indices,farea=edgefind(imchunk,avg_rgb,pixcals) #calculating border pixels
+        
         print('Edge found')
         xarr=[]
         yarr=[]
@@ -286,7 +286,10 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
         img3=cv2.rectangle(img0,(p[0],p[1]),(p[0]+p[2],p[1]+p[3]),color,thickness) #creating the output images
         img3 = cv2.putText(img3, str(height), (p[0]+p[2]+10,p[1]+int(p[3]/2)), cv2.FONT_HERSHEY_SIMPLEX,1, (0,0,0), 2, cv2.LINE_AA)
         img3 = cv2.putText(img3, str(width), (p[0],p[1]-10), cv2.FONT_HERSHEY_SIMPLEX,1, (0,0,0), 2, cv2.LINE_AA)
+        flakergb=[0,0,0]
+        farea=0
         if boundflag==1:
+            flakergb,indices,farea=edgefind(imchunk,avg_rgb,pixcals) #calculating border pixels
             for index in indices:
                 #print(index)
                 indx=index[0]+bounds[0]
