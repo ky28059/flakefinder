@@ -91,8 +91,8 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
     pixcal=1314.08/w #microns/pixel from Leica calibration
     pixcals=[pixcal,876.13/h]
     img_pixels = img.copy().reshape(-1, 3)
-    lowlim=np.array([108,100,99])#defines lower limit for what code can see as background
-    highlim=np.array([140,165,135])
+    lowlim=np.array([87,100,99])#np.array([108,100,99])#defines lower limit for what code can see as background
+    highlim=np.array([114,118,114])#np.array([140,165,135])
     imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1,3)
     test=np.sign(imsmall-lowlim)+np.sign(highlim-imsmall)
     pixout=imsmall*np.sign(test+abs(test)) #chooses pixels between provided limits, quickly filtering to potential background pixels
@@ -277,8 +277,6 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
         print(x_min,y_min,x_max,y_max)
         bounds=[max(0,p[1]),min(p[1]+p[3],int(h)),max(0,p[0]),min(p[0]+p[2],int(w))]
         imchunk=img[bounds[0]:bounds[1],bounds[2]:bounds[3]] #identifying bounding box of flake
-        
-        print('Edge found')
         xarr=[]
         yarr=[]
         width=round(p[2]*pixcal,1)
@@ -290,6 +288,7 @@ def run_file(img_filepath,outputdir,scanposdict,dims):
         farea=0
         if boundflag==1:
             flakergb,indices,farea=edgefind(imchunk,avg_rgb,pixcals) #calculating border pixels
+            print('Edge found')
             for index in indices:
                 #print(index)
                 indx=index[0]+bounds[0]
