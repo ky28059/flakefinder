@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import numpy as np
 import time
 import cv2
+from util import bg_to_flake_color, dim_get, pos_get
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -114,7 +115,7 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
     bluest = blues.argmax()
     backrgb = [reddest, greenest, bluest]  # defining background color
     # print(backrgb)
-    avg_rgb = rgbfunc(backrgb)  # calculates monolayer color based on background color
+    avg_rgb = bg_to_flake_color(backrgb)  # calculates monolayer color based on background color
     # print(backrgb,avg_rgb)
     rgb_pixel_dists = np.sqrt(
         np.sum((img_pixels - avg_rgb) ** 2, axis=1))  # calculating distance between each pixel and predicted flake RGB
@@ -358,88 +359,9 @@ def edgefind(imchunk, avg_rgb,
     return rgb, indices3, farea
 
 
-def rgbfunc(rgbarr):  # outputs flake color based on input background color, values determined empirically
-    red = rgbarr[0]
-    green = rgbarr[1]
-    blue = rgbarr[2]
-    rval = int(round(0.8643 * red - 2.55, 0))
-    gval = int(round(0.8601 * green + 9.6765, 0))
-    bval = blue + 4
-    # print('coloring')
-    return np.array([rval, gval, bval])
-
-
-def dimget(inputdir):  # finds scan size from microscope file
-    filename = inputdir + "/leicametadata/TileScan_001.xlif"
-    try:
-        with open(filename, 'r') as file:
-            rawdata = file.read()
-        rawdata2 = rawdata.partition('</Attachment>')
-        rawdata = rawdata2[0]
-        size = len(rawdata)
-        xarr = []
-        yarr = []
-        while size > 10:
-            rawdata2 = rawdata.partition('FieldX="')
-            rawdata = rawdata2[2]
-            rawdata3 = rawdata.partition('" FieldY="')
-            xd = int(rawdata3[0])
-            rawdata = rawdata3[2]
-            rawdata4 = rawdata.partition('" PosX="')
-            yd = int(rawdata4[0])
-            rawdata = rawdata4[2]
-            rawdata5 = rawdata.partition('" />')
-            rawdata = rawdata5[2]
-            xarr.append(xd)
-            yarr.append(yd)
-            size = len(rawdata)
-            # print(size)
-        xarr = np.array(xarr)
-        yarr = np.array(yarr)
-        print('Your scan is ' + str(np.max(xarr) + 1) + ' by ' + str(np.max(yarr) + 1))
-        return np.max(xarr) + 1, np.max(yarr) + 1
-    except:
-        return 1, 1
-
-
-def posget(inputdir):  # finds image location from microscope file
-    filename = inputdir + "/leicametadata/TileScan_001.xlif"
-    print(filename)
-    posarr = []
-    with open(filename, 'r') as file:
-        rawdata = file.read()
-        rawdata2 = rawdata.partition('</Attachment>')
-        rawdata = rawdata2[0]
-        size = len(rawdata)
-        while size > 10:
-            rawdata2 = rawdata.partition('FieldX="')
-            rawdata = rawdata2[2]
-            rawdata3 = rawdata.partition('" FieldY="')
-            xd = int(rawdata3[0])
-            rawdata = rawdata3[2]
-            rawdata4 = rawdata.partition('" PosX="')
-            yd = int(rawdata4[0])
-            rawdata5 = rawdata4[2]
-            rawdata6 = rawdata5.partition('" PosY="')
-            posx = float(rawdata6[0])
-            rawdata7 = rawdata6[2]
-            rawdata8 = rawdata7.partition('" PosZ="')
-            posy = float(rawdata8[0])
-            rawdata9 = rawdata8[2]
-            rawdata10 = rawdata9.partition('" />')
-            rawdata = rawdata10[2]
-            posarr.append([xd, posx, yd, posy])
-            size = len(rawdata)
-            # print(size)
-        posarr = np.array(posarr)
-        print('Position dict made')
-        return posarr
-
-
 def location(m, dimset):
-    outset = dimset
-    height = int(outset[1])
-    width = int(outset[0])
+    height = int(dimset[1])
+    width = int(dimset[0])
     row = m % height
     column = (m - row) / height
     print(m, column, row)
@@ -469,9 +391,10 @@ def plotmaker(mlist, dims, directory):
 
 
 def main(args):
-    inputfile = args.q
-    file1 = open(str(inputfile))
-    inputs = file1.readlines()
+    input_file_path = args.q
+    with open(str(input_file_path)) as file1:
+        inputs = file1.readlines()
+
     cleaninputs = []
     for line in inputs:
         line = line.strip("\n")
@@ -481,58 +404,60 @@ def main(args):
         outputdir = line[slicer2:]
         cleaninputs.append([inputdir, outputdir])
     print(cleaninputs)
-    for pair in cleaninputs:
-        input_dir = pair[0]
-        outputloc = pair[1]
-        os.makedirs(outputloc, exist_ok=True)
-        os.makedirs(outputloc + "\\AreaSort\\", exist_ok=True)
+
+    for input_dir, output_loc in cleaninputs:
+        os.makedirs(output_loc, exist_ok=True)
+        os.makedirs(output_loc + "\\AreaSort\\", exist_ok=True)
         files = glob.glob(os.path.join(input_dir, "*"))
 
         files = [f for f in files if "Stage" in f]
         files.sort(key=len)
         # Filter files to only have images.
-        # smuggling outputloc into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
-        dims = dimget(input_dir)
-        n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
-        logger = open(outputloc + "Color Log.txt", "w+")
-        logger.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
-        logger.close()
+        # smuggling output_loc into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
+        dims = dim_get(input_dir)
+
+        with open(output_loc + "Color Log.txt", "w+") as logger:
+            logger.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
+
         tik = time.time()
-        scanposdict = posget(input_dir)
-        files = [[f, outputloc, scanposdict, dims] for f in files if
+        scanposdict = pos_get(input_dir)
+        files = [[f, output_loc, scanposdict, dims] for f in files if
                  os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
+
+        n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
         with Pool(n_proc) as pool:
             pool.map(run_file_wrapped, files)
         tok = time.time()
-        filecounter = glob.glob(os.path.join(outputloc, "*"))
+
+        filecounter = glob.glob(os.path.join(output_loc, "*"))
         filecounter = [f for f in filecounter if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
         filecounter2 = [f for f in filecounter if "Stage" in f]
         # print(filecounter2)
         # print(filecounter2)
-        filecount = len(filecounter2)
-        f = open(outputloc + "Summary.txt", "a+")
-        f.write(
-            f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
-        f.write(str(filecount) + ' identified flakes\n')
 
-        f.write('flake_colors_rgb=' + str(flake_colors_rgb) + '\n')
-        f.write('t_rgb_dist=' + str(t_rgb_dist) + '\n')
-        # f.write('t_hue_dist='+str(t_hue_dist)+'\n')
-        f.write('t_red_dist=' + str(t_red_dist) + '\n')
-        # f.write('t_red_cutoff='+str(t_red_cutoff)+'\n')
-        f.write('t_color_match_count=' + str(t_color_match_count) + '\n')
-        f.write('t_min_cluster_pixel_count=' + str(t_min_cluster_pixel_count) + '\n')
-        f.write('t_max_cluster_pixel_count=' + str(t_max_cluster_pixel_count) + '\n')
-        f.write('k=' + str(k) + "\n\n")
-        f.close()
-        flist = open(outputloc + "Imlist.txt", "w+")
+        filecount = len(filecounter2)
+        with open(output_loc + "Summary.txt", "a+") as f:
+            f.write(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
+            f.write(str(filecount) + ' identified flakes\n')
+
+            f.write('flake_colors_rgb=' + str(flake_colors_rgb) + '\n')
+            f.write('t_rgb_dist=' + str(t_rgb_dist) + '\n')
+            # f.write('t_hue_dist='+str(t_hue_dist)+'\n')
+            f.write('t_red_dist=' + str(t_red_dist) + '\n')
+            # f.write('t_red_cutoff='+str(t_red_cutoff)+'\n')
+            f.write('t_color_match_count=' + str(t_color_match_count) + '\n')
+            f.write('t_min_cluster_pixel_count=' + str(t_min_cluster_pixel_count) + '\n')
+            f.write('t_max_cluster_pixel_count=' + str(t_max_cluster_pixel_count) + '\n')
+            f.write('k=' + str(k) + "\n\n")
+
+        flist = open(output_loc + "Imlist.txt", "w+")
         flist.write("List of Stage Numbers for copying to Analysis Sheet" + "\n")
         flist.close()
-        flist = open(outputloc + "Imlist.txt", "a+")
-        fwrite = open(outputloc + "By Area.txt", "w+")
+        flist = open(output_loc + "Imlist.txt", "a+")
+        fwrite = open(output_loc + "By Area.txt", "w+")
         fwrite.write("Num, A" + "\n")
         fwrite.close()
-        fwrite = open(outputloc + "By Area.txt", "a+")
+        fwrite = open(output_loc + "By Area.txt", "a+")
         numlist = []
         for file in filecounter2:
             splits = file.split("Stage")
@@ -542,10 +467,10 @@ def main(args):
         numlist = np.sort(np.array(numlist))
         for number in numlist:
             flist.write(str(number) + "\n")
-        plotmaker(numlist, dims, outputloc)  # creating cartoon for file
+        plotmaker(numlist, dims, output_loc)  # creating cartoon for file
         flist.close()
-        # print(outputloc+"Color Log.txt")
-        N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(outputloc + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+        # print(output_loc+"Color Log.txt")
+        N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(output_loc + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
         pairs = []
         i = 0
         while i < len(A):
@@ -564,9 +489,14 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Find graphene flakes on SiO2. Currently configured only for "
-                                                 "exfoliator dataset")
-    parser.add_argument("--q", required=True, type=str,
-                        help="Directory containing images to process. Optional unless running in headless mode")
+    parser = argparse.ArgumentParser(
+        description="Find graphene flakes on SiO2. Currently configured only for exfoliator dataset"
+    )
+    parser.add_argument(
+        "--q",
+        required=True,
+        type=str,
+        help="Directory containing images to process. Optional unless running in headless mode"
+    )
     args = parser.parse_args()
     main(args)
