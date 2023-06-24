@@ -4,6 +4,11 @@ import argparse
 
 
 def pos_get(input_dir: str) -> np.ndarray:
+    """
+    TODO
+    :param input_dir: The directory containing the microscope file.
+    :return:
+    """
     with open(input_dir + "/leicametadata/TileScan_001.xlif", 'r') as file:
         rawdata = file.read()
 

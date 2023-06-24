@@ -3,19 +3,16 @@ Note: Currently only configured for Exfoliator tilescans. Very unlikely to work 
 """
 import glob
 import os
-from sklearn.cluster import DBSCAN
 from multiprocessing import Pool
 import argparse
-import matplotlib
-
-matplotlib.use('tkagg')
-from matplotlib.patches import Rectangle
-from dataclasses import dataclass
 import numpy as np
 import time
 import cv2
-import matplotlib.pyplot as plt
-from functools import reduce
+from util.config import load_config
+from util.leica import dim_get
+import matplotlib
+
+matplotlib.use('tkagg')
 
 
 def imread(path):
@@ -92,35 +89,6 @@ def run_file(filelist):
     cv2.imwrite(os.path.join(outputloc + "\pstitch", os.path.basename(str(step) + ".jpg")), stitch)
 
 
-def dimget(inputdir):
-    filename = inputdir + "/leicametadata/TileScan_001.xlif"
-    with open(filename, 'r') as file:
-        rawdata = file.read()
-    rawdata2 = rawdata.partition('</Attachment>')
-    rawdata = rawdata2[0]
-    size = len(rawdata)
-    xarr = []
-    yarr = []
-    while size > 10:
-        rawdata2 = rawdata.partition('FieldX="')
-        rawdata = rawdata2[2]
-        rawdata3 = rawdata.partition('" FieldY="')
-        xd = int(rawdata3[0])
-        rawdata = rawdata3[2]
-        rawdata4 = rawdata.partition('" PosX="')
-        yd = int(rawdata4[0])
-        rawdata = rawdata4[2]
-        rawdata5 = rawdata.partition('" />')
-        rawdata = rawdata5[2]
-        xarr.append(xd)
-        yarr.append(yd)
-        size = len(rawdata)
-        # print(size)
-    xarr = np.array(xarr)
-    yarr = np.array(yarr)
-    return np.max(xarr) + 1, np.max(yarr) + 1
-
-
 def location(m, dimset):
     outset = dimset
     height = outset[1]
@@ -132,39 +100,27 @@ def location(m, dimset):
 
 
 def main(args):
-    inputfile = args.q
-    if args.map == "Y" or args.map == "y":
-        coordflag = 1
-    else:
-        coordflag = 0
-    file1 = open(str(inputfile))
-    inputs = file1.readlines()
-    cleaninputs = []
-    for line in inputs:
-        line = line.strip("\n")
-        slicer = line.find("OutputDir:")
-        inputdir = line[10:slicer - 2]  # starts after the length of "InputDir: "
-        slicer2 = slicer + 11
-        outputdir = line[slicer2:]
-        cleaninputs.append([inputdir, outputdir])
-    print(cleaninputs)
-    for pair in cleaninputs:
-        input_dir = pair[0]
-        outputloc = pair[1]
-        os.makedirs(outputloc, exist_ok=True)
-        os.makedirs(outputloc + "\pstitch", exist_ok=True)
+    config = load_config(args.q)
+    coordflag = args.map == "Y" or args.map == "y"
+
+    for input_dir, output_dir in config:
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(output_dir + "\pstitch", exist_ok=True)
+
         files = glob.glob(os.path.join(input_dir, "*"))
         # Filter files to only have images.
         files = [f for f in files if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg", '.tif']]
         files = [f for f in files if 'Stage' in f]
+
         testimg = cv2.imread(files[0])
         h, w, c = testimg.shape
         files.sort(key=len)
         # print(files)
-        # smuggling outputloc into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
+
+        # smuggling output_dir into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
         dh = 3648
         dw = int(round(dh * 3 / 2, 0))
-        dims = dimget(input_dir)
+        dims = dim_get(input_dir)
         print(dims)
         dimh = int(round(dh * rescale * (0.9 * dims[1] + 0.1), 0)) + 1
         dimw = int(round(dw * rescale * (0.9 * dims[0] + 0.1), 0)) + 1
@@ -190,7 +146,7 @@ def main(args):
                 arr = pararr[i]
                 # print(arr)
                 farr1 = files[arr[0]:arr[1]]
-                farr1 = [[f, steps[i], newshape, dims, outputloc] for f in farr1]
+                farr1 = [[f, steps[i], newshape, dims, output_dir] for f in farr1]
                 farr.append(farr1)
                 i = i + 1
             # print(pararr,len(farr[0]))
@@ -198,7 +154,7 @@ def main(args):
             with Pool(n_proc) as pool:
                 pool.map(run_file_wrapped, farr)
             tok = time.time()
-            pstitches = glob.glob(os.path.join(outputloc + "\pstitch", "*"))
+            pstitches = glob.glob(os.path.join(output_dir + "\pstitch", "*"))
             fstitch = np.int16(np.zeros(newshape))
             plist = []
             for pstitchfile in pstitches:
@@ -235,9 +191,10 @@ def main(args):
                         fstitch[0:h2 - 1, offsetw:offsetw + delta - 1]) + np.int32(
                         fstitch[0:h2 - 1, offsetw:offsetw + delta - 1])) / 2
                 j = j + 1
-        cv2.imwrite(os.path.join(outputloc, os.path.basename("stitched.jpg")), fstitch)
+        cv2.imwrite(os.path.join(output_dir, os.path.basename("stitched.jpg")), fstitch)
+
         if coordflag == 1:
-            imlist = np.loadtxt(outputloc + "Imlist.txt", skiprows=1)
+            imlist = np.loadtxt(output_dir + "Imlist.txt", skiprows=1)
             fstitch2 = fstitch.copy()
 
             sh, sw, sc = fstitch.shape
@@ -250,16 +207,26 @@ def main(args):
                 fstitch2 = img4 = cv2.putText(fstitch2, str(int(m)), coords2, cv2.FONT_HERSHEY_SIMPLEX, 0.8,
                                               (0, 0, 255), 2, cv2.LINE_AA)
                 fstitch2 = cv2.rectangle(fstitch2, start, end, (0, 0, 255), 2)
-            cv2.imwrite(os.path.join(outputloc, os.path.basename("coordmap.jpg")), fstitch2)
+            cv2.imwrite(os.path.join(output_dir, os.path.basename("coordmap.jpg")), fstitch2)
+
         print(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Find graphene flakes on SiO2. Currently configured only for "
-                                                 "exfoliator dataset")
-    parser.add_argument("--q", required=True, type=str,
-                        help="Queue file with list of IO directories")
-    parser.add_argument("--map", required=True, type=str,
-                        help="Does Imlist.txt exist, allowing flake locations to be described?")
+    parser = argparse.ArgumentParser(
+        description="Find graphene flakes on SiO2. Currently configured only for exfoliator dataset"
+    )
+    parser.add_argument(
+        "--q",
+        required=True,
+        type=str,
+        help="Queue file with list of IO directories"
+    )
+    parser.add_argument(
+        "--map",
+        required=True,
+        type=str,
+        help="Does Imlist.txt exist, allowing flake locations to be described?"
+    )
     args = parser.parse_args()
     main(args)
