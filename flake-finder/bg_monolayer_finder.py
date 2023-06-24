@@ -10,7 +10,9 @@ from dataclasses import dataclass
 import numpy as np
 import time
 import cv2
-from util import bg_to_flake_color, dim_get, pos_get
+from util import bg_to_flake_color
+from util.leica import dim_get, pos_get
+from util.config import load_config
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -480,28 +482,16 @@ def rgb_get(f, scanposdict, bgs, dims):
 
 
 def main(args):
-    inputfile = args.q
-    file1 = open(str(inputfile))
-    inputs = file1.readlines()
-    cleaninputs = []
-    for line in inputs:
-        line = line.strip("\n")
-        slicer = line.find("OutputDir:")
-        inputdir = line[10:slicer - 2]  # starts after the length of "InputDir: "
-        slicer2 = slicer + 11
-        outputdir = line[slicer2:]
-        cleaninputs.append([inputdir, outputdir])
-    print(cleaninputs)
-    for pair in cleaninputs:
-        input_dir = pair[0]
-        outputloc = pair[1]
-        basedir = inputdir.split("Scan")[0]
+    config = load_config(args.q)
+
+    for input_dir, output_dir in config:
+        basedir = input_dir.split("Scan")[0]
         bg_dir = basedir + "\Background\TileScan_001"
         bgwrite = open(basedir + "BG_RGB.txt", "w+")
         bgwrite.write("X,Y,R,G,B\n")
         bgwrite.close()
-        os.makedirs(outputloc, exist_ok=True)
-        os.makedirs(outputloc + "\\AreaSort\\", exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(output_dir + "\\AreaSort\\", exist_ok=True)
         files = glob.glob(os.path.join(input_dir, "*"))
         bgfiles = glob.glob(os.path.join(bg_dir, "*"))
         files = [f for f in files if ("Stage" in f or "stage" in f)]
@@ -510,12 +500,12 @@ def main(args):
         files.sort(key=len)
         # Filter files to only have images.
 
-        # smuggling outputloc into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
+        # smuggling output_dir into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
         dims = dim_get(input_dir)
         bgdims = dim_get(bg_dir)
         bgfiles = [[f, basedir, bgdims, bgpos] for f in bgfiles]
         n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
-        logger = open(outputloc + "Color Log.txt", "w+")
+        logger = open(output_dir + "Color Log.txt", "w+")
         logger.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
         logger.close()
         tik = time.time()
@@ -526,17 +516,17 @@ def main(args):
         # print('bgs',bgs)
         files = [f for f in files if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
         scanposdict = pos_get(input_dir)
-        files = [[f, outputloc, scanposdict, bgs, dims] for f in files]
+        files = [[f, output_dir, scanposdict, bgs, dims] for f in files]
         with Pool(n_proc) as pool:
             pool.map(run_file_wrapped, files)
         tok = time.time()
-        filecounter = glob.glob(os.path.join(outputloc, "*"))
+        filecounter = glob.glob(os.path.join(output_dir, "*"))
         filecounter = [f for f in filecounter if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
         filecounter2 = [f for f in filecounter if ("Stage" in f or 'stage' in f)]
         # print(filecounter2)
         # print(filecounter2)
         filecount = len(filecounter2)
-        f = open(outputloc + "Summary.txt", "a+")
+        f = open(output_dir + "Summary.txt", "a+")
         f.write(
             f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
         f.write(str(filecount) + ' identified flakes\n')
@@ -551,14 +541,14 @@ def main(args):
         f.write('t_max_cluster_pixel_count=' + str(t_max_cluster_pixel_count) + '\n')
         f.write('k=' + str(k) + "\n\n")
         f.close()
-        flist = open(outputloc + "Imlist.txt", "w+")
+        flist = open(output_dir + "Imlist.txt", "w+")
         flist.write("List of Stage Numbers for copying to Analysis Sheet" + "\n")
         flist.close()
-        flist = open(outputloc + "Imlist.txt", "a+")
-        fwrite = open(outputloc + "By Area.txt", "w+")
+        flist = open(output_dir + "Imlist.txt", "a+")
+        fwrite = open(output_dir + "By Area.txt", "w+")
         fwrite.write("Num, A" + "\n")
         fwrite.close()
-        fwrite = open(outputloc + "By Area.txt", "a+")
+        fwrite = open(output_dir + "By Area.txt", "a+")
         numlist = []
         for file in filecounter2:
             splits = file.split("Stage")
@@ -570,10 +560,10 @@ def main(args):
         numlist = np.sort(np.array(numlist))
         for number in numlist:
             flist.write(str(number) + "\n")
-        parr = plotmaker(numlist, dims, outputloc)
+        parr = plotmaker(numlist, dims, output_dir)
         flist.close()
-        # print(outputloc+"Color Log.txt")
-        N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(outputloc + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+        # print(output_dir+"Color Log.txt")
+        N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
         pairs = []
         i = 0
         while i < len(A):

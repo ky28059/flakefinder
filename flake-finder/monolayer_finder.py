@@ -10,7 +10,9 @@ from dataclasses import dataclass
 import numpy as np
 import time
 import cv2
-from util import bg_to_flake_color, dim_get, pos_get
+from util import bg_to_flake_color
+from util.leica import dim_get, pos_get
+from util.config import load_config
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -391,37 +393,25 @@ def plotmaker(mlist, dims, directory):
 
 
 def main(args):
-    input_file_path = args.q
-    with open(str(input_file_path)) as file1:
-        inputs = file1.readlines()
+    config = load_config(args.q)
 
-    cleaninputs = []
-    for line in inputs:
-        line = line.strip("\n")
-        slicer = line.find("OutputDir:")
-        inputdir = line[10:slicer - 2]  # starts after the length of "InputDir: "
-        slicer2 = slicer + 11
-        outputdir = line[slicer2:]
-        cleaninputs.append([inputdir, outputdir])
-    print(cleaninputs)
-
-    for input_dir, output_loc in cleaninputs:
-        os.makedirs(output_loc, exist_ok=True)
-        os.makedirs(output_loc + "\\AreaSort\\", exist_ok=True)
+    for input_dir, output_dir in config:
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(output_dir + "\\AreaSort\\", exist_ok=True)
         files = glob.glob(os.path.join(input_dir, "*"))
 
         files = [f for f in files if "Stage" in f]
         files.sort(key=len)
         # Filter files to only have images.
-        # smuggling output_loc into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
+        # smuggling output_dir into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
         dims = dim_get(input_dir)
 
-        with open(output_loc + "Color Log.txt", "w+") as logger:
+        with open(output_dir + "Color Log.txt", "w+") as logger:
             logger.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
 
         tik = time.time()
         scanposdict = pos_get(input_dir)
-        files = [[f, output_loc, scanposdict, dims] for f in files if
+        files = [[f, output_dir, scanposdict, dims] for f in files if
                  os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
 
         n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
@@ -429,14 +419,14 @@ def main(args):
             pool.map(run_file_wrapped, files)
         tok = time.time()
 
-        filecounter = glob.glob(os.path.join(output_loc, "*"))
+        filecounter = glob.glob(os.path.join(output_dir, "*"))
         filecounter = [f for f in filecounter if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
         filecounter2 = [f for f in filecounter if "Stage" in f]
         # print(filecounter2)
         # print(filecounter2)
 
         filecount = len(filecounter2)
-        with open(output_loc + "Summary.txt", "a+") as f:
+        with open(output_dir + "Summary.txt", "a+") as f:
             f.write(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
             f.write(str(filecount) + ' identified flakes\n')
 
@@ -450,14 +440,14 @@ def main(args):
             f.write('t_max_cluster_pixel_count=' + str(t_max_cluster_pixel_count) + '\n')
             f.write('k=' + str(k) + "\n\n")
 
-        flist = open(output_loc + "Imlist.txt", "w+")
+        flist = open(output_dir + "Imlist.txt", "w+")
         flist.write("List of Stage Numbers for copying to Analysis Sheet" + "\n")
         flist.close()
-        flist = open(output_loc + "Imlist.txt", "a+")
-        fwrite = open(output_loc + "By Area.txt", "w+")
+        flist = open(output_dir + "Imlist.txt", "a+")
+        fwrite = open(output_dir + "By Area.txt", "w+")
         fwrite.write("Num, A" + "\n")
         fwrite.close()
-        fwrite = open(output_loc + "By Area.txt", "a+")
+        fwrite = open(output_dir + "By Area.txt", "a+")
         numlist = []
         for file in filecounter2:
             splits = file.split("Stage")
@@ -467,10 +457,10 @@ def main(args):
         numlist = np.sort(np.array(numlist))
         for number in numlist:
             flist.write(str(number) + "\n")
-        plotmaker(numlist, dims, output_loc)  # creating cartoon for file
+        plotmaker(numlist, dims, output_dir)  # creating cartoon for file
         flist.close()
-        # print(output_loc+"Color Log.txt")
-        N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(output_loc + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+        # print(output_dir+"Color Log.txt")
+        N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
         pairs = []
         i = 0
         while i < len(A):
