@@ -86,7 +86,7 @@ def run_file(filelist):
                 stitch[offseth - diffh:offseth - 1, offsetw - diffw:offsetw - 1])) / 2
         tok = time.time()
         print(f"{img_filepath} - {tok - tik} seconds")
-    cv2.imwrite(os.path.join(outputloc + "\pstitch", os.path.basename(str(step) + ".jpg")), stitch)
+    cv2.imwrite(os.path.join(outputloc + "\\pstitch", os.path.basename(str(step) + ".jpg")), stitch)
 
 
 def location(m, dimset):
@@ -101,11 +101,11 @@ def location(m, dimset):
 
 def main(args):
     config = load_config(args.q)
-    coordflag = args.map == "Y" or args.map == "y"
+    coordflag = args.map.lower() == "y"
 
     for input_dir, output_dir in config:
         os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(output_dir + "\pstitch", exist_ok=True)
+        os.makedirs(output_dir + "\\pstitch", exist_ok=True)
 
         files = glob.glob(os.path.join(input_dir, "*"))
         # Filter files to only have images.
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         "--map",
         required=True,
         type=str,
-        help="Does Imlist.txt exist, allowing flake locations to be described?"
+        help="Does Imlist.txt exist, allowing flake locations to be described? (y/N)"
     )
     args = parser.parse_args()
     main(args)

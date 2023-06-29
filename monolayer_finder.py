@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import numpy as np
 import time
 import cv2
-from util import bg_to_flake_color
+from util.flake_color import bg_to_flake_color
 from util.leica import dim_get, pos_get
 from util.config import load_config
 import matplotlib
