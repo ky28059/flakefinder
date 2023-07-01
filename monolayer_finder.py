@@ -13,10 +13,7 @@ import cv2
 from util.flake_color import bg_to_flake_color
 from util.leica import dim_get, pos_get
 from util.config import load_config
-import matplotlib
-import matplotlib.pyplot as plt
-
-matplotlib.use('tkagg')
+from util.plot import make_plot, location
 
 
 def imread(path):
@@ -268,7 +265,6 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
     radius = 1
     i = -1
     imloc = location(num, dims)
-    print(num, 'Finding Location')
     while radius > 0.1:
         i = i + 1
         radius = (int(imloc[0]) - int(scanposdict[i][0])) ** 2 + (int(imloc[1]) - int(scanposdict[i][2])) ** 2
@@ -361,37 +357,6 @@ def edgefind(imchunk, avg_rgb,
     return rgb, indices3, farea
 
 
-def location(m, dimset):
-    height = int(dimset[1])
-    width = int(dimset[0])
-    row = m % height
-    column = (m - row) / height
-    print(m, column, row)
-    return column, row, height - 1, width - 1
-
-
-def plotmaker(mlist, dims, directory):
-    imx = 1314.09 / 1000
-    imy = 875.89 / 1000  # mm
-    # parr=[]
-    plt.figure(figsize=(18, 18))
-    print(mlist)
-    for m in mlist:
-        x, y, maxy, maxx = location(m, dims)
-        print(x, y, maxy, maxx)
-        plt.scatter(x * imx, y * imy)
-        plt.text(x * imx, y * imy + .03, m, fontsize=9)
-        # parr.append([m,round(x*imx,1),round(y*imy,1)])
-    boundx = [0, maxx * imx, maxx * imx, 0, 0]
-    boundy = [0, 0, maxy * imy, maxy * imy, 0]
-    plt.plot(boundx, boundy)
-    plt.gca().invert_yaxis()
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.grid(color='green', linestyle='--', linewidth=0.5)
-    plt.savefig(directory + "coordmap.jpg")
-    plt.close()
-
-
 def main(args):
     config = load_config(args.q)
 
@@ -457,7 +422,7 @@ def main(args):
         numlist = np.sort(np.array(numlist))
         for number in numlist:
             flist.write(str(number) + "\n")
-        plotmaker(numlist, dims, output_dir)  # creating cartoon for file
+        make_plot(numlist, dims, output_dir)  # creating cartoon for file
         flist.close()
         # print(output_dir+"Color Log.txt")
         N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)

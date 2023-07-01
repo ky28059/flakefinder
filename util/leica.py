@@ -3,6 +3,9 @@ import re
 import argparse
 
 
+Dimensions = tuple[int, int]
+
+
 def pos_get(input_dir: str) -> np.ndarray:
     """
     TODO
@@ -17,11 +20,11 @@ def pos_get(input_dir: str) -> np.ndarray:
     return np.array([[int(xd), float(posx), int(yd), float(posy)] for xd, yd, posx, posy in matches])
 
 
-def dim_get(input_dir: str) -> tuple[int, int]:
+def dim_get(input_dir: str) -> Dimensions:
     """
     Gets the scan dimensions from a microscope file.
     :param input_dir: The directory containing the microscope file.
-    :return: The dimensions of the scan, as a tuple of [x, y].
+    :return: The dimensions of the scan, as a tuple of [width, height].
     """
     data = pos_get(input_dir)
 
