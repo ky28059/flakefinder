@@ -1,42 +1,21 @@
 """
 Note: Currently only configured for Exfoliator tilescans. Very unlikely to work well on other datasets.
 """
+import argparse
 import glob
 import os
-from sklearn.cluster import DBSCAN
-from multiprocessing import Pool
-import argparse
-from dataclasses import dataclass
-import numpy as np
 import time
+from multiprocessing import Pool
+
 import cv2
-from util.flake_color import bg_to_flake_color
-from util.leica import dim_get, pos_get
+import numpy as np
+import matplotlib
+from sklearn.cluster import DBSCAN
+
 from util.config import load_config
+from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-
-
-def imread(path):
-    raw = cv2.imread(path)
-    return cv2.cvtColor(raw, cv2.COLOR_BGR2RGB)
-
-
-@dataclass
-class Box:
-    label: str
-    x: int
-    y: int
-    width: int
-    height: int
-
-    def to_mask(self, img, b=5):
-        h, w = img.shape
-        boundx = min(0, self.x)
-        boundy = min(0, self.y)
-        return np.logical_and.outer(
-            np.logical_and(np.arange(boundy, h) >= self.y - b, np.arange(boundy, h) <= self.y + self.height + 2 * b),
-            np.logical_and(np.arange(boundx, w) >= self.x - b, np.arange(boundx, w) <= self.x + self.width + 2 * b),
-        )
+from util.processing import bg_to_flake_color, Box
 
 
 flake_colors_rgb = [

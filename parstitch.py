@@ -1,23 +1,20 @@
 """
 Note: Currently only configured for Exfoliator tilescans. Very unlikely to work well on other datasets.
 """
+import argparse
 import glob
 import os
-from multiprocessing import Pool
-import argparse
-import numpy as np
 import time
+from multiprocessing import Pool
+
 import cv2
+import matplotlib
+import numpy as np
+
 from util.config import load_config
 from util.leica import dim_get
-import matplotlib
 
 matplotlib.use('tkagg')
-
-
-def imread(path):
-    raw = cv2.imread(path)
-    return cv2.cvtColor(raw, cv2.COLOR_BGR2RGB)
 
 
 threadsave = 4  # number of threads NOT allocated when running

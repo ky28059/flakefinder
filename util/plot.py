@@ -27,10 +27,10 @@ def make_plot(mlist, dims: Dimensions, directory: str) -> list[list[float]]:
         plt.text(x * imx, y * imy + .03, m, fontsize=9)
         parr.append([m, round(x * imx, 1), round(y * imy, 1)])
 
-    boundx = [0, maxx * imx, maxx * imx, 0, 0]
-    boundy = [0, 0, maxy * imy, maxy * imy, 0]
+    bound_x = [0, maxx * imx, maxx * imx, 0, 0]
+    bound_y = [0, 0, maxy * imy, maxy * imy, 0]
 
-    plt.plot(boundx, boundy)
+    plt.plot(bound_x, bound_y)
     plt.gca().invert_yaxis()
     plt.gca().set_aspect('equal', adjustable='box')
     plt.grid(color='green', linestyle='--', linewidth=0.5)
