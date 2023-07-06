@@ -364,8 +364,7 @@ def get_bg_rgb(imfile):
     reddest = np.average(impix[:, 0])
     greenest = np.average(impix[:, 1])
     bluest = np.average(impix[:, 2])
-    backrgb = [reddest, greenest, bluest]
-    return backrgb
+    return [reddest, greenest, bluest]
 
 
 def get_bg_rgb_wrapped(infile):

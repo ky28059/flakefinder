@@ -1,6 +1,6 @@
 import matplotlib
 import matplotlib.pyplot as plt
-from leica import Dimensions
+from util.leica import Dimensions
 
 matplotlib.use('tkagg')
 
