@@ -16,7 +16,7 @@ from sklearn.cluster import DBSCAN
 from util.config import load_config
 from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, edgefind, Box
+from util.processing import bg_to_flake_color, edgefind, merge_boxes, Box
 from util.logger import logger
 
 
@@ -166,66 +166,10 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
         boxes.append(Box(label_id, x.min(), y.min(), width, height))
 
     # Merge boxes
-    boxes_merged0 = []
-    boxes_merged = []
-    eliminated_indexes = []
-    eliminated_indexes2 = []
-    for _i in range(len(boxes)):
-        if _i in eliminated_indexes:
-            continue
-        i = boxes[_i]
-        for _j in range(_i + 1, len(boxes)):
-            j = boxes[_j]
-            # Ith box is always <= jth box regarding y. Not necessarily w.r.t x.
-            # sequence the y layers.
-            # just cheat and use Intersection in pixel space method.
-            on_i = i.to_mask(dbscan_img)
-            on_j = j.to_mask(dbscan_img)
+    pass_1 = merge_boxes(dbscan_img, boxes)
+    merged_boxes = merge_boxes(dbscan_img, pass_1)
 
-            # Now calculate their intersection. If there's any overlap we'll count that.
-            intersection_count = np.logical_and(on_i, on_j).sum()
-
-            if intersection_count > 0:
-                # Extend the first box to include dimensions of the 2nd box.
-                x_min = min(i.x, j.x)
-                x_max = max(i.x + i.width, j.x + j.width)
-                y_min = min(i.y, j.y)
-                y_max = max(i.y + i.height, j.y + j.height)
-                # print(x_min, x_max)
-                # print(y_min, y_max)
-                new_width = x_max - x_min
-                new_height = y_max - y_min
-                i = Box(i.label, x_min, y_min, new_width, new_height)
-                eliminated_indexes.append(_j)
-        boxes_merged0.append(i)
-    for _i in range(len(boxes_merged0)):
-        if _i in eliminated_indexes2:
-            continue
-        i = boxes_merged0[_i]
-        for _j in range(_i + 1, len(boxes_merged0)):
-            j = boxes_merged0[_j]
-            # Ith box is always <= jth box regarding y. Not necessarily w.r.t x.
-            # sequence the y layers.
-            # just cheat and use Intersection in pixel space method.
-            on_i = i.to_mask(dbscan_img)
-            on_j = j.to_mask(dbscan_img)
-
-            # Now calculate their intersection. If there's any overlap we'll count that.
-            intersection_count = np.logical_and(on_i, on_j).sum()
-
-            if intersection_count > 0:
-                # Extend the first box to include dimensions of the 2nd box.
-                x_min = min(i.x, j.x)
-                x_max = max(i.x + i.width, j.x + j.width)
-                y_min = min(i.y, j.y)
-                y_max = max(i.y + i.height, j.y + j.height)
-                new_width = x_max - x_min
-                new_height = y_max - y_min
-                i = Box(i.label, x_min, y_min, new_width, new_height)
-                eliminated_indexes2.append(_j)
-                # print(_j,' eliminated on second pass')
-        boxes_merged.append(i)
-    if not boxes_merged:
+    if not merged_boxes:
         return
 
     # Make patches out of clusters
@@ -235,7 +179,7 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
     patches = [
         [int((int(b.x) - offset) * bscale), int((int(b.y) - offset) * bscale),
          int((int(b.width) + 2 * offset) * bscale), int((int(b.height) + 2 * offset) * bscale)] for b
-        in boxes_merged
+        in merged_boxes
     ]
     logger.debug('patched')
     color = (0, 0, 255)
