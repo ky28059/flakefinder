@@ -6,6 +6,12 @@ matplotlib.use('tkagg')
 
 
 def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: supposed to be a float?
+    """
+    Gets the (x, y) location of the mth scan image given the width and height of the scan.
+    :param m: The index to locate.
+    :param dims: The dimensions of the scan, as a tuple of (width, height).
+    :return: The location, as a tuple of (x, y, height - 1, width - 1)
+    """
     width, height = dims
     row = m % height
     column = (m - row) / height

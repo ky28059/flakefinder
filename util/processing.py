@@ -1,5 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
+from util.logger import logger
 
 
 @dataclass
@@ -62,12 +63,11 @@ def edgefind(imchunk, avg_rgb, pixcals: list[float], t_rgb_dist: int) -> tuple[l
     indices = np.argwhere(np.any(maskpic2 > 0, axis=2))  # flake region
     farea = round(len(indices) * pixcalw * pixcalh, 1)
 
-    indices2 = np.argwhere(np.any(maskpic2 > -1, axis=2))
-    indices3 = []
-    for index in indices2:
-        dist = np.min(np.sum((indices - index) ** 2, axis=1))
-        if dist > 3 and dist < 20:
-            indices3.append(index)  # borders
+    # TODO: rename
+    indices3 = [
+        index for index in np.argwhere(np.any(maskpic2 > -1, axis=2))
+        if 3 < np.min(np.sum((indices - index) ** 2, axis=1)) < 20
+    ]
 
-    print('boundary found')
+    logger.info('boundary found')
     return rgb, indices3, farea

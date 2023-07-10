@@ -4,6 +4,7 @@ Note: Currently only configured for Exfoliator tilescans. Very unlikely to work 
 import argparse
 import glob
 import os
+import re
 import time
 from multiprocessing import Pool
 
@@ -60,9 +61,9 @@ def run_file_wrapped(filepath):
     try:
         run_file(filepath1, outputloc, scanposdict, dims)
     except Exception as e:
-        print("Exception occurred: ", e)
+        logger.warn(f"Exception occurred: {e}")
     tok = time.time()
-    print(f"{filepath[0]} - {tok - tik} seconds")
+    logger.info(f"{filepath[0]} - {tok - tik} seconds")
 
 
 def run_file(img_filepath, outputdir, scanposdict, dims):
@@ -115,10 +116,10 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
     if t_count < t_color_match_count * len(img_pixels):
         # print('Count failed',t_count)
         return
-    print(f"{img_filepath} meets count thresh with {t_count}")
+    logger.debug(f"{img_filepath} meets count thresh with {t_count}")
     pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
     if np.sum(pixdark) / len(img_pixels) > 0.1:  # edge detection, if more than 10% of the image is too dark, return
-        print(f"{img_filepath} was on an edge!")
+        logger.debug(f"{img_filepath} was on an edge!")
         return
     # Create Masked image
     img2_mask_in = img.copy().reshape(-1, 3)
@@ -150,7 +151,7 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
 
     if len(h_labels) < 1:
         return
-    print(f"{img_filepath} had {len(h_labels)} filtered dbscan clusters")
+    logger.debug(f"{img_filepath} had {len(h_labels)} filtered dbscan clusters")
 
     # Make boxes
     boxes = []
@@ -236,31 +237,33 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
          int((int(b.width) + 2 * offset) * bscale), int((int(b.height) + 2 * offset) * bscale)] for b
         in boxes_merged
     ]
-    print('patched')
+    logger.debug('patched')
     color = (0, 0, 255)
     thickness = 6
-    logger = open(outputdir + "Color Log.txt", "a+")
-    splits = img_filepath.split("Stage")
-    imname = splits[1]
-    num = int(os.path.splitext(imname)[0])
+    log_file = open(outputdir + "Color Log.txt", "a+")
+
+    stage = int(re.search(r"Stage(\d{3})", img_filepath).group(1))
+    imloc = location(stage, dims)
+
     radius = 1
     i = -1
-    imloc = location(num, dims)
     while radius > 0.1:
         i = i + 1
         radius = (int(imloc[0]) - int(scanposdict[i][0])) ** 2 + (int(imloc[1]) - int(scanposdict[i][2])) ** 2
     posx = scanposdict[i][1]
     posy = scanposdict[i][3]
     posstr = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
+
     img0 = cv2.putText(img0, posstr, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 2, cv2.LINE_AA)
     img4 = img0.copy()
+
     for p in patches:
-        print(p)
+        logger.debug(p)
         y_min = int(p[0] + 2 * offset * bscale / 3)
         y_max = int(p[0] + p[2] - 2 * offset * bscale / 3)
         x_min = int(p[1] + 2 * offset * bscale / 3)
         x_max = int(p[1] + p[3] - 2 * offset * bscale / 3)  # note that the offsets cancel here
-        print(x_min, y_min, x_max, y_max)
+        logger.debug((x_min, y_min, x_max, y_max))
         bounds = [max(0, p[1]), min(p[1] + p[3], int(h)), max(0, p[0]), min(p[0] + p[2], int(w))]
         imchunk = img[bounds[0]:bounds[1], bounds[2]:bounds[3]]  # identifying bounding box of flake
         xarr = []
@@ -274,9 +277,10 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
         img3 = cv2.putText(img3, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
         flakergb = [0, 0, 0]
         farea = 0
+
         if boundflag == 1:
             flakergb, indices, farea = edgefind(imchunk, avg_rgb, pixcals, t_rgb_dist)  # calculating border pixels
-            print('Edge found')
+            logger.debug('Edge found')
             for index in indices:
                 # print(index)
                 indx = index[0] + bounds[0]
@@ -289,10 +293,11 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
                 img4[indx, indy] = img4[indx, indy] + [25, 25, 25]
                 xarr.append(indx)
                 yarr.append(indy)
-        logstr = str(num) + ',' + str(farea) + ',' + str(flakergb[0]) + ',' + str(flakergb[1]) + ',' + str(
+        logstr = str(stage) + ',' + str(farea) + ',' + str(flakergb[0]) + ',' + str(flakergb[1]) + ',' + str(
             flakergb[2]) + ',' + str(backrgb[0]) + ',' + str(backrgb[1]) + ',' + str(backrgb[2])
-        logger.write(logstr + '\n')
-    logger.close()
+        log_file.write(logstr + '\n')
+
+    log_file.close()
 
     cv2.imwrite(os.path.join(outputdir, os.path.basename(img_filepath)), img3)
     if boundflag == 1:
@@ -300,7 +305,7 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
                     img4)
 
     tok = time.time()
-    print(f"{img_filepath} - {tok - tik} seconds")
+    logger.info(f"{img_filepath} - {tok - tik} seconds")
 
 
 def main(args):
