@@ -1,11 +1,5 @@
-import cv2
 import numpy as np
 from dataclasses import dataclass
-
-
-# def imread(path):
-#     raw = cv2.imread(path)
-#     return cv2.cvtColor(raw, cv2.COLOR_BGR2RGB)
 
 
 @dataclass
@@ -38,3 +32,42 @@ def bg_to_flake_color(rgbarr):
     bval = blue + 4
     # print('coloring')
     return np.array([rval, gval, bval])
+
+
+# this identifies the edges of flakes, resource-intensive but useful for determining if flake ID is working
+def edgefind(imchunk, avg_rgb, pixcals: list[float], t_rgb_dist: int) -> tuple[list[int], list[int], float]:
+    pixcalw, pixcalh = pixcals
+    edgerad = 20
+
+    imchunk2 = imchunk.copy()
+    impix = imchunk.copy().reshape(-1, 3)
+    dims = np.shape(imchunk)
+
+    flakeid = np.sqrt(np.sum((impix - avg_rgb) ** 2, axis=1)) < t_rgb_dist  # a mask for pixel color
+    maskpic = np.reshape(flakeid, (dims[0], dims[1], 1))
+
+    red_freq = np.bincount(impix[:, 0] * flakeid)
+    green_freq = np.bincount(impix[:, 1] * flakeid)
+    blue_freq = np.bincount(impix[:, 2] * flakeid)
+    red_freq[0] = 0  # otherwise argmax finds values masked to 0 by flakeid
+    green_freq[0] = 0
+    blue_freq[0] = 0
+
+    # determines flake RGB as the most common R,G,B value in identified flake region
+    rgb = [red_freq.argmax(), green_freq.argmax(), blue_freq.argmax()]
+
+    flakeid2 = np.sqrt(np.sum((impix - rgb) ** 2, axis=1)) < 5  # a mask for pixel color
+    maskpic2 = np.reshape(flakeid2, (dims[0], dims[1], 1))
+
+    indices = np.argwhere(np.any(maskpic2 > 0, axis=2))  # flake region
+    farea = round(len(indices) * pixcalw * pixcalh, 1)
+
+    indices2 = np.argwhere(np.any(maskpic2 > -1, axis=2))
+    indices3 = []
+    for index in indices2:
+        dist = np.min(np.sum((indices - index) ** 2, axis=1))
+        if dist > 3 and dist < 20:
+            indices3.append(index)  # borders
+
+    print('boundary found')
+    return rgb, indices3, farea

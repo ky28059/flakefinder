@@ -35,6 +35,7 @@ def dim_get(input_dir: str) -> Dimensions:
 
 
 if __name__ == '__main__':
+    from logger import logger
     from config import load_config
 
     # TODO: new description or abstract
@@ -50,4 +51,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     for input_dir, _ in load_config(args.q):
-        print(f"Found dimensions for {input_dir}: {dim_get(input_dir)}")
+        logger.info(f"Found dimensions for {input_dir}: {dim_get(input_dir)}")

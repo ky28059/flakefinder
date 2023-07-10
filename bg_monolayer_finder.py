@@ -310,14 +310,16 @@ def run_file(img_filepath, outputdir, scanposdict, bgs, dims):
 
 
 def edgefind(imchunk, avg_rgb, pixcals):
-    pixcalw = pixcals[0]
-    pixcalh = pixcals[1]
+    pixcalw, pixcalh = pixcals
     edgerad = 20
+
     imchunk2 = imchunk.copy()
     impix = imchunk.copy().reshape(-1, 3)
     dims = np.shape(imchunk)
+
     flakeid = np.sqrt(np.sum((impix - avg_rgb) ** 2, axis=1)) < t_rgb_dist  # a mask for pixel color
     maskpic = np.reshape(flakeid, (dims[0], dims[1], 1))
+
     red1 = impix[:, 0] * flakeid
     green1 = impix[:, 1] * flakeid
     blue1 = impix[:, 2] * flakeid

@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+
+from util.logger import logger
+
+
 def load_config(input_file_path: str) -> list[list[str]]:
     """
     Loads the configuration file at the specified file path.
@@ -16,5 +24,5 @@ def load_config(input_file_path: str) -> list[list[str]]:
         outputdir = line[slicer2:]
         config.append([inputdir, outputdir])
 
-    print(f"Loaded config: {config}")
+    logger.info(f"Loaded config: {config}")
     return config

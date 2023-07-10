@@ -15,7 +15,8 @@ from sklearn.cluster import DBSCAN
 from util.config import load_config
 from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, Box
+from util.processing import bg_to_flake_color, edgefind, Box
+from util.logger import logger
 
 
 flake_colors_rgb = [
@@ -104,9 +105,10 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
     # hue_pixel_dists = np.sqrt((hsv_pixels[:, 0] - flake_color_hsv[0]) ** 2)
     # hue_t_count = np.sum(hue_pixel_dists < t_hue_dist)
 
+    # masking the image to only the pixels close enough to predicted flake color
     # img_mask = np.logical_and(hue_pixel_dists < t_hue_dist, rgb_pixel_dists < t_rgb_dist)
-    img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, reddest - img_pixels[:,
-                                                                      0] > 5)  # masking the image to only the pixels close enough to predicted flake color
+    img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, reddest - img_pixels[:, 0] > 5)
+
     # Show how many are true, how many are false.
     t_count = np.sum(img_mask)
     # print(t_count)
@@ -273,7 +275,7 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
         flakergb = [0, 0, 0]
         farea = 0
         if boundflag == 1:
-            flakergb, indices, farea = edgefind(imchunk, avg_rgb, pixcals)  # calculating border pixels
+            flakergb, indices, farea = edgefind(imchunk, avg_rgb, pixcals, t_rgb_dist)  # calculating border pixels
             print('Edge found')
             for index in indices:
                 # print(index)
@@ -301,41 +303,6 @@ def run_file(img_filepath, outputdir, scanposdict, dims):
     print(f"{img_filepath} - {tok - tik} seconds")
 
 
-def edgefind(imchunk, avg_rgb,
-             pixcals):  # this identifies the edges of flakes, resource-intensive but useful for determining if flake ID is working
-    pixcalw = pixcals[0]
-    pixcalh = pixcals[1]
-    edgerad = 20
-    imchunk2 = imchunk.copy()
-    impix = imchunk.copy().reshape(-1, 3)
-    dims = np.shape(imchunk)
-    flakeid = np.sqrt(np.sum((impix - avg_rgb) ** 2, axis=1)) < t_rgb_dist  # a mask for pixel color
-    maskpic = np.reshape(flakeid, (dims[0], dims[1], 1))
-    freds = np.bincount(impix[:, 0] * flakeid)
-    fgreens = np.bincount(impix[:, 1] * flakeid)
-    fblues = np.bincount(impix[:, 2] * flakeid)
-    freds[0] = 0  # otherwise argmax finds values masked to 0 by flakeid
-    fgreens[0] = 0
-    fblues[0] = 0
-    freddest = freds.argmax()  # determines flake RGB as the most common R,G,B value in identified flake region
-    fgreenest = fgreens.argmax()
-    fbluest = fblues.argmax()
-    rgb = [freddest, fgreenest, fbluest]
-
-    flakeid2 = np.sqrt(np.sum((impix - rgb) ** 2, axis=1)) < 5  # a mask for pixel color
-    maskpic2 = np.reshape(flakeid2, (dims[0], dims[1], 1))
-    indices = np.argwhere(np.any(maskpic2 > 0, axis=2))  # flake region
-    farea = round(len(indices) * pixcalw * pixcalh, 1)
-    indices2 = np.argwhere(np.any(maskpic2 > -1, axis=2))
-    indices3 = []
-    for index in indices2:
-        dist = np.min(np.sum((indices - index) ** 2, axis=1))
-        if dist > 3 and dist < 20:
-            indices3.append(index)  # borders
-    print('boundary found')
-    return rgb, indices3, farea
-
-
 def main(args):
     config = load_config(args.q)
 
@@ -350,13 +317,14 @@ def main(args):
         # smuggling output_dir into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
         dims = dim_get(input_dir)
 
-        with open(output_dir + "Color Log.txt", "w+") as logger:
-            logger.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
+        with open(output_dir + "Color Log.txt", "w+") as logFile:
+            logFile.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
 
         tik = time.time()
         scanposdict = pos_get(input_dir)
-        files = [[f, output_dir, scanposdict, dims] for f in files if
-                 os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
+        files = [
+            [f, output_dir, scanposdict, dims] for f in files if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]
+        ]
 
         n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
         with Pool(n_proc) as pool:
@@ -392,19 +360,24 @@ def main(args):
         fwrite.write("Num, A" + "\n")
         fwrite.close()
         fwrite = open(output_dir + "By Area.txt", "a+")
+
         numlist = []
         for file in filecounter2:
             splits = file.split("Stage")
             num = splits[1]
             number = os.path.splitext(num)[0]
             numlist.append(int(number))
+
         numlist = np.sort(np.array(numlist))
         for number in numlist:
             flist.write(str(number) + "\n")
+
         make_plot(numlist, dims, output_dir)  # creating cartoon for file
         flist.close()
+
         # print(output_dir+"Color Log.txt")
         N, A, Rf, Gf, Bf, Rw, Gw, Bw = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+
         pairs = []
         i = 0
         while i < len(A):
@@ -419,7 +392,7 @@ def main(args):
             fwrite.write(writestr)
         fwrite.close()
 
-        print(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file")
+        logger.info(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file")
 
 
 if __name__ == "__main__":
