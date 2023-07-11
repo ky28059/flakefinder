@@ -7,7 +7,7 @@ logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 
-fh = logging.FileHandler(f'{time.time_ns()}.log')
+fh = logging.FileHandler('flakefinder.log')
 fh.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter('[%(asctime)s - %(module)s %(levelname)s]: %(message)s')
