@@ -1,11 +1,13 @@
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+
 from util.leica import location, Dimensions
 
 matplotlib.use('tkagg')
 
 
-def make_plot(mlist: list[int], dims: Dimensions, directory: str) -> list[list[float]]:
+def make_plot(mlist: np.ndarray[int], dims: Dimensions, directory: str) -> list[list[float]]:
     imx = 1314.09 / 1000
     imy = 875.89 / 1000  # mm
     parr = []

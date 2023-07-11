@@ -11,7 +11,6 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 import matplotlib
-from sklearn.cluster import DBSCAN
 
 from util.config import load_config
 from util.leica import dim_get, pos_get
@@ -63,10 +62,9 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         pixcal = 1314.08 / w  # microns/pixel from Leica calibration
         pixcals = [pixcal, 876.13 / h]
 
-        img_pixels = img.copy().reshape(-1, 3)
-        lowlim = np.array(
-            [87, 100, 99])  # np.array([108,100,99])#defines lower limit for what code can see as background
-        highlim = np.array([114, 118, 114])  # np.array([140,165,135])
+        lowlim = np.array([87, 100, 99]) # defines lower limit for what code can see as background
+        highlim = np.array([114, 118, 114])
+
         imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
         test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
 
@@ -79,6 +77,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # Get monolayer color from background color, and calculate distance between each pixel and predicted flake RGB
         back_rgb = get_avg_rgb(pixout)
         flake_avg_rgb = bg_to_flake_color(back_rgb)
+
+        img_pixels = img.copy().reshape(-1, 3)
         rgb_pixel_dists = np.sqrt(np.sum((img_pixels - flake_avg_rgb) ** 2, axis=1))
 
         # Mask the image to only the pixels close enough to predicted flake color
@@ -217,21 +217,18 @@ def main(args):
     for input_dir, output_dir in config:
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(output_dir + "\\AreaSort\\", exist_ok=True)
-        files = glob.glob(os.path.join(input_dir, "*"))
 
-        files = [f for f in files if "Stage" in f]
-        files.sort(key=len)
-        # Filter files to only have images.
-        # smuggling output_dir into pool.map by packaging it with the iterable, gets unpacked by run_file_wrapped
-        dims = dim_get(input_dir)
+        input_files = [f for f in glob.glob(os.path.join(input_dir, "*")) if "Stage" in f]
+        input_files.sort(key=len)
 
         with open(output_dir + "Color Log.txt", "w+") as log_file:
             log_file.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
 
         tik = time.time()
         scanposdict = pos_get(input_dir)
+        dims = dim_get(input_dir)
         files = [
-            [f, output_dir, scanposdict, dims] for f in files if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]
+            [f, output_dir, scanposdict, dims] for f in input_files if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]
         ]
 
         n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
@@ -239,11 +236,12 @@ def main(args):
             pool.starmap(run_file, files)
         tok = time.time()
 
-        filecounter = glob.glob(os.path.join(output_dir, "*"))
-        filecounter = [f for f in filecounter if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]]
-        filecounter2 = [f for f in filecounter if "Stage" in f]
+        output_files = [
+            f for f in glob.glob(os.path.join(output_dir, "*"))
+            if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"] and "Stage" in f
+        ]
+        filecount = len(output_files)
 
-        filecount = len(filecounter2)
         with open(output_dir + "Summary.txt", "a+") as f:
             f.write(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
             f.write(str(filecount) + ' identified flakes\n')
@@ -267,14 +265,8 @@ def main(args):
         fwrite.close()
         fwrite = open(output_dir + "By Area.txt", "a+")
 
-        numlist = []
-        for file in filecounter2:
-            stage = int(re.search(r"Stage(\d{3})", file).group(1))
-            numlist.append(stage)
-
-        numlist = np.sort(np.array(numlist))
-
-        make_plot(numlist, dims, output_dir)  # creating cartoon for file
+        stages = np.sort(np.array([int(re.search(r"Stage(\d{3})", file).group(1)) for file in output_files]))
+        make_plot(stages, dims, output_dir)  # creating cartoon for file
         flist.close()
 
         # print(output_dir+"Color Log.txt")
