@@ -97,7 +97,7 @@ def location(m, dimset):
 
 
 def main(args):
-    config = load_config(args.q)
+    config = load_config(args.q or "Queue.txt")
     coordflag = args.map.lower() == "y"
 
     for input_dir, output_dir in config:
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--q",
-        required=True,
+        required=False,
         type=str,
         help="Queue file with list of IO directories"
     )

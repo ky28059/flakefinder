@@ -16,7 +16,7 @@ from sklearn.cluster import DBSCAN
 from util.config import load_config
 from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_avg_rgb, edgefind
+from util.processing import bg_to_flake_color, get_avg_rgb, find_chunks, edgefind
 from util.box import merge_boxes, Box
 from util.logger import logger
 
@@ -52,188 +52,167 @@ t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
 scale = 1  # the resolution images are saved at, relative to the original file. Does not affect DB scan
 
 
-# This would be a decorator but apparently multiprocessing lib doesn't know how to serialize it.
-def run_file_wrapped(filepath):
-    tik = time.time()
-    filepath1, outputloc, scanposdict, dims = filepath
-
-    try:
-        run_file(filepath1, outputloc, scanposdict, dims)
-    except Exception as e:
-        logger.warn(f"Exception occurred: {e}")
-    tok = time.time()
-    logger.info(f"{filepath[0]} - {tok - tik} seconds")
-
-
 def run_file(img_filepath, output_dir, scan_pos_dict, dims):
     tik = time.time()
 
-    img0 = cv2.imread(img_filepath)
-    img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
-    h, w, c = img.shape
+    try:
+        img0 = cv2.imread(img_filepath)
+        img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
+        h, w, c = img.shape
 
-    pixcal = 1314.08 / w  # microns/pixel from Leica calibration
-    pixcals = [pixcal, 876.13 / h]
+        pixcal = 1314.08 / w  # microns/pixel from Leica calibration
+        pixcals = [pixcal, 876.13 / h]
 
-    img_pixels = img.copy().reshape(-1, 3)
-    lowlim = np.array([87, 100, 99])  # np.array([108,100,99])#defines lower limit for what code can see as background
-    highlim = np.array([114, 118, 114])  # np.array([140,165,135])
-    imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
-    test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
+        img_pixels = img.copy().reshape(-1, 3)
+        lowlim = np.array(
+            [87, 100, 99])  # np.array([108,100,99])#defines lower limit for what code can see as background
+        highlim = np.array([114, 118, 114])  # np.array([140,165,135])
+        imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
+        test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
 
-    # chooses pixels between provided limits, quickly filtering to potential background pixels
-    pixout = imsmall * np.sign(test + abs(test))
-    if len(pixout) == 0:  # making sure background is identified
-        # print('Pixel failed')
-        return
+        # chooses pixels between provided limits, quickly filtering to potential background pixels
+        pixout = imsmall * np.sign(test + abs(test))
+        if len(pixout) == 0:  # making sure background is identified
+            # print('Pixel failed')
+            return
 
-    # Get monolayer color from background color, and calculate distance between each pixel and predicted flake RGB
-    back_rgb = get_avg_rgb(pixout)
-    flake_avg_rgb = bg_to_flake_color(back_rgb)
-    rgb_pixel_dists = np.sqrt(np.sum((img_pixels - flake_avg_rgb) ** 2, axis=1))
+        # Get monolayer color from background color, and calculate distance between each pixel and predicted flake RGB
+        back_rgb = get_avg_rgb(pixout)
+        flake_avg_rgb = bg_to_flake_color(back_rgb)
+        rgb_pixel_dists = np.sqrt(np.sum((img_pixels - flake_avg_rgb) ** 2, axis=1))
 
-    # Mask the image to only the pixels close enough to predicted flake color
-    img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, back_rgb[0] - img_pixels[:, 0] > 5)
+        # Mask the image to only the pixels close enough to predicted flake color
+        img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, back_rgb[0] - img_pixels[:, 0] > 5)
 
-    # If the number of close pixels is under the threshold, return early
-    t_count = np.sum(img_mask)
-    if t_count < t_color_match_count * len(img_pixels):
-        # print('Count failed', t_count)
-        return
+        # If the number of close pixels is under the threshold, return early
+        t_count = np.sum(img_mask)
+        if t_count < t_color_match_count * len(img_pixels):
+            # print('Count failed', t_count)
+            return
 
-    logger.debug(f"{img_filepath} meets count thresh with {t_count}")
+        logger.debug(f"{img_filepath} meets count thresh with {t_count}")
 
-    # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
-    pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
-    if np.sum(pixdark) / len(img_pixels) > 0.1:
-        logger.debug(f"{img_filepath} was on an edge!")
-        return
+        # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
+        pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
+        if np.sum(pixdark) / len(img_pixels) > 0.1:
+            logger.debug(f"{img_filepath} was on an edge!")
+            return
 
-    # Create Masked image
-    img2_mask_in = img.copy().reshape(-1, 3)
-    img2_mask_in[~img_mask] = np.array([0, 0, 0])
-    img2_mask_in = img2_mask_in.reshape(img.shape)
+        # Create Masked image
+        img2_mask_in = img.copy().reshape(-1, 3)
+        img2_mask_in[~img_mask] = np.array([0, 0, 0])
+        img2_mask_in = img2_mask_in.reshape(img.shape)
 
-    # DB SCAN, fitting to find clusters of correctly colored pixels
-    dbscan_img = cv2.cvtColor(img2_mask_in, cv2.COLOR_RGB2GRAY)
-    dbscan_img = cv2.resize(dbscan_img, dsize=(256 * k, 171 * k))
-    db = DBSCAN(eps=2.0, min_samples=6, metric='euclidean', algorithm='auto', n_jobs=1)
+        # DB SCAN, fitting to find clusters of correctly colored pixels
+        dbscan_img = cv2.cvtColor(img2_mask_in, cv2.COLOR_RGB2GRAY)
+        dbscan_img = cv2.resize(dbscan_img, dsize=(256 * k, 171 * k))
 
-    indices = np.dstack(np.indices(dbscan_img.shape[:2]))
-    xycolors = np.concatenate((np.expand_dims(dbscan_img, axis=-1), indices), axis=-1)
-    feature_image = np.reshape(xycolors, [-1, 3])
-    db.fit(feature_image)
+        labels, h_labels = find_chunks(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count)
 
-    label_names = range(-1, db.labels_.max() + 1)
-    # print(f"{img_filepath} had {len(label_names)}  dbscan clusters")
+        if len(h_labels) < 1:
+            return
+        logger.debug(f"{img_filepath} had {len(h_labels)} filtered dbscan clusters")
 
-    # Thresholding of clusters
-    labels = db.labels_
-    n_pixels = np.bincount(labels + 1, minlength=len(label_names))
-    # print(n_pixels)
-    criteria = np.logical_and(n_pixels > t_min_cluster_pixel_count, n_pixels < t_max_cluster_pixel_count)
-    h_labels = np.array(label_names)
-    # print(h_labels)
-    h_labels = h_labels[criteria]
-    # print(h_labels)
-    h_labels = h_labels[h_labels > 0]
+        # Make boxes
+        boxes = []
+        for label_id in h_labels:
+            # Find bounding box... in x/y plane find min value. This is just argmin and argmax
+            criteria = labels == label_id
+            criteria = criteria.reshape(dbscan_img.shape[:2]).astype(np.uint8)
+            x = np.where(criteria.sum(axis=0) > 0)[0]
+            y = np.where(criteria.sum(axis=1) > 0)[0]
+            width = x.max() - x.min()
+            height = y.max() - y.min()
+            boxes.append(Box(label_id, x.min(), y.min(), width, height))
 
-    if len(h_labels) < 1:
-        return
-    logger.debug(f"{img_filepath} had {len(h_labels)} filtered dbscan clusters")
+        # Merge boxes that overlap
+        pass_one = merge_boxes(dbscan_img, boxes)
+        merged_boxes = merge_boxes(dbscan_img, pass_one)
 
-    # Make boxes
-    boxes = []
-    for label_id in h_labels:
-        # Find bounding box... in x/y plane find min value. This is just argmin and argmax
-        criteria = labels == label_id
-        criteria = criteria.reshape(dbscan_img.shape[:2]).astype(np.uint8)
-        x = np.where(criteria.sum(axis=0) > 0)[0]
-        y = np.where(criteria.sum(axis=1) > 0)[0]
-        width = x.max() - x.min()
-        height = y.max() - y.min()
-        boxes.append(Box(label_id, x.min(), y.min(), width, height))
+        if not merged_boxes:
+            return
 
-    # Merge boxes that overlap
-    pass_1 = merge_boxes(dbscan_img, boxes)
-    merged_boxes = merge_boxes(dbscan_img, pass_1)
+        # Make patches out of clusters
+        wantshape = (int(int(img.shape[1]) * scale), int(int(img.shape[0]) * scale))
+        bscale = wantshape[0] / (256 * k)  # need to scale up box from dbscan image
+        offset = 5
+        patches = [
+            [int((int(b.x) - offset) * bscale), int((int(b.y) - offset) * bscale),
+             int((int(b.width) + 2 * offset) * bscale), int((int(b.height) + 2 * offset) * bscale)] for b
+            in merged_boxes
+        ]
+        logger.debug('patched')
+        color = (0, 0, 255)
+        thickness = 6
+        log_file = open(output_dir + "Color Log.txt", "a+")
 
-    if not merged_boxes:
-        return
+        stage = int(re.search(r"Stage(\d{3})", img_filepath).group(1))
+        imloc = location(stage, dims)
 
-    # Make patches out of clusters
-    wantshape = (int(int(img.shape[1]) * scale), int(int(img.shape[0]) * scale))
-    bscale = wantshape[0] / (256 * k)  # need to scale up box from dbscan image
-    offset = 5
-    patches = [
-        [int((int(b.x) - offset) * bscale), int((int(b.y) - offset) * bscale),
-         int((int(b.width) + 2 * offset) * bscale), int((int(b.height) + 2 * offset) * bscale)] for b
-        in merged_boxes
-    ]
-    logger.debug('patched')
-    color = (0, 0, 255)
-    thickness = 6
-    log_file = open(output_dir + "Color Log.txt", "a+")
+        # Convert back from (x, y) scan number to mm coordinates
+        radius = 1
+        i = -1
+        while radius > 0.1:
+            i = i + 1
+            radius = (int(imloc[0]) - int(scan_pos_dict[i][0])) ** 2 + (int(imloc[1]) - int(scan_pos_dict[i][2])) ** 2
+        posx = scan_pos_dict[i][1]
+        posy = scan_pos_dict[i][3]
+        posstr = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
 
-    stage = int(re.search(r"Stage(\d{3})", img_filepath).group(1))
-    imloc = location(stage, dims)
+        img0 = cv2.putText(img0, posstr, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 2, cv2.LINE_AA)
+        img4 = img0.copy()
 
-    # Convert back from (x, y) scan number to mm coordinates
-    radius = 1
-    i = -1
-    while radius > 0.1:
-        i = i + 1
-        radius = (int(imloc[0]) - int(scan_pos_dict[i][0])) ** 2 + (int(imloc[1]) - int(scan_pos_dict[i][2])) ** 2
-    posx = scan_pos_dict[i][1]
-    posy = scan_pos_dict[i][3]
-    posstr = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
+        for p in patches:
+            logger.debug(p)
+            y_min = int(p[0] + 2 * offset * bscale / 3)
+            y_max = int(p[0] + p[2] - 2 * offset * bscale / 3)
+            x_min = int(p[1] + 2 * offset * bscale / 3)
+            x_max = int(p[1] + p[3] - 2 * offset * bscale / 3)  # note that the offsets cancel here
+            logger.debug((x_min, y_min, x_max, y_max))
+            bounds = [max(0, p[1]), min(p[1] + p[3], int(h)), max(0, p[0]), min(p[0] + p[2], int(w))]
+            imchunk = img[bounds[0]:bounds[1], bounds[2]:bounds[3]]  # identifying bounding box of flake
 
-    img0 = cv2.putText(img0, posstr, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 2, cv2.LINE_AA)
-    img4 = img0.copy()
+            width = round(p[2] * pixcal, 1)
+            height = round(p[3] * pixcal, 1)  # microns
 
-    for p in patches:
-        logger.debug(p)
-        y_min = int(p[0] + 2 * offset * bscale / 3)
-        y_max = int(p[0] + p[2] - 2 * offset * bscale / 3)
-        x_min = int(p[1] + 2 * offset * bscale / 3)
-        x_max = int(p[1] + p[3] - 2 * offset * bscale / 3)  # note that the offsets cancel here
-        logger.debug((x_min, y_min, x_max, y_max))
-        bounds = [max(0, p[1]), min(p[1] + p[3], int(h)), max(0, p[0]), min(p[0] + p[2], int(w))]
-        imchunk = img[bounds[0]:bounds[1], bounds[2]:bounds[3]]  # identifying bounding box of flake
+            # creating the output images
+            img3 = cv2.rectangle(img0, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
+            img3 = cv2.putText(img3, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                               (0, 0, 0), 2, cv2.LINE_AA)
+            img3 = cv2.putText(img3, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2,
+                               cv2.LINE_AA)
 
-        width = round(p[2] * pixcal, 1)
-        height = round(p[3] * pixcal, 1)  # microns
+            flake_rgb = [0, 0, 0]
+            farea = 0
+            if boundflag:
+                flake_rgb, edgeim, farea = edgefind(imchunk, flake_avg_rgb, pixcals, t_rgb_dist)  # calculating border pixels
+                print('Edge found')
+                img4 = cv2.rectangle(img4, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
+                img4 = cv2.putText(img4, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
+                img4 = cv2.putText(img4, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2,
+                                   cv2.LINE_AA)
+                img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] = img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] + edgeim
 
-        # creating the output images
-        img3 = cv2.rectangle(img0, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
-        img3 = cv2.putText(img3, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
-        img3 = cv2.putText(img3, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
+            logstr = str(stage) + ',' + str(farea) + ',' + str(flake_rgb[0]) + ',' + str(flake_rgb[1]) + ',' + str(
+                flake_rgb[2]) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
+            log_file.write(logstr + '\n')
 
-        flakergb = [0, 0, 0]
-        farea = 0
+        log_file.close()
+
+        cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img3)
         if boundflag:
-            flakergb, edgeim, farea = edgefind(imchunk, flake_avg_rgb, pixcals)  # calculating border pixels
-            print('Edge found')
-            img4 = cv2.rectangle(img4, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
-            img4 = cv2.putText(img4, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
-            img4 = cv2.putText(img4, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
-            img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] = img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] + edgeim
-
-        logstr = str(stage) + ',' + str(farea) + ',' + str(flakergb[0]) + ',' + str(flakergb[1]) + ',' + str(flakergb[2]) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
-        log_file.write(logstr + '\n')
-
-    log_file.close()
-
-    cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img3)
-    if boundflag:
-        cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(int(farea)) + '_' + os.path.basename(img_filepath)), img4)
+            cv2.imwrite(
+                os.path.join(output_dir + "\\AreaSort\\", str(int(farea)) + '_' + os.path.basename(img_filepath)), img4)
+    except Exception as e:
+        logger.warn(f"Exception occurred: {e}")
 
     tok = time.time()
     logger.info(f"{img_filepath} - {tok - tik} seconds")
 
 
 def main(args):
-    config = load_config(args.q)
+    config = load_config(args.q or "Queue.txt")
 
     for input_dir, output_dir in config:
         os.makedirs(output_dir, exist_ok=True)
@@ -257,7 +236,7 @@ def main(args):
 
         n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
         with Pool(n_proc) as pool:
-            pool.map(run_file_wrapped, files)
+            pool.starmap(run_file, files)
         tok = time.time()
 
         filecounter = glob.glob(os.path.join(output_dir, "*"))
@@ -324,7 +303,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--q",
-        required=True,
+        required=False,
         type=str,
         help="Directory containing images to process. Optional unless running in headless mode"
     )

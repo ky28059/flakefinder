@@ -58,11 +58,11 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--q",
-        required=True,
+        required=False,
         type=str,
         help="Directory containing images to process. Optional unless running in headless mode"
     )
     args = parser.parse_args()
 
-    for input_dir, _ in load_config(args.q):
+    for input_dir, _ in load_config(args.q or "Queue.txt"):
         logger.info(f"Found dimensions for {input_dir}: {dim_get(input_dir)}")

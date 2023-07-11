@@ -1,7 +1,6 @@
-import numpy as np
 import cv2
-from util.logger import logger
-
+import numpy as np
+from sklearn.cluster import DBSCAN
 
 RGB = list[int]
 FlakeRGB = np.ndarray[int]
@@ -38,6 +37,29 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
     blue_freq[0] = 0
 
     return [red_freq.argmax(), green_freq.argmax(), blue_freq.argmax()]
+
+
+def find_chunks(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count) -> tuple[np.ndarray, np.ndarray]:
+    db = DBSCAN(eps=2.0, min_samples=6, metric='euclidean', algorithm='auto', n_jobs=1)
+
+    indices = np.dstack(np.indices(dbscan_img.shape[:2]))
+    xycolors = np.concatenate((np.expand_dims(dbscan_img, axis=-1), indices), axis=-1)
+    feature_image = np.reshape(xycolors, [-1, 3])
+    db.fit(feature_image)
+
+    label_names = range(-1, db.labels_.max() + 1)
+    # print(f"{img_filepath} had {len(label_names)}  dbscan clusters")
+
+    # Thresholding of clusters
+    labels = db.labels_
+    n_pixels = np.bincount(labels + 1, minlength=len(label_names))
+    # print(n_pixels)
+    criteria = (n_pixels > t_min_cluster_pixel_count) & (n_pixels < t_max_cluster_pixel_count)
+
+    h_labels = np.array(label_names)[criteria]
+    h_labels = h_labels[h_labels > 0]
+
+    return labels, h_labels
 
 
 # this identifies the edges of flakes, resource-intensive but useful for determining if flake ID is working
