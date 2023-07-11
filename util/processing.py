@@ -39,7 +39,7 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
     return [red_freq.argmax(), green_freq.argmax(), blue_freq.argmax()]
 
 
-def find_chunks(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count) -> tuple[np.ndarray, np.ndarray]:
+def find_clusters(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count) -> tuple[np.ndarray, np.ndarray]:
     db = DBSCAN(eps=2.0, min_samples=6, metric='euclidean', algorithm='auto', n_jobs=1)
 
     indices = np.dstack(np.indices(dbscan_img.shape[:2]))

@@ -15,7 +15,7 @@ import matplotlib
 from util.config import load_config
 from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_avg_rgb, find_chunks, edgefind
+from util.processing import bg_to_flake_color, get_avg_rgb, find_clusters, edgefind
 from util.box import merge_boxes, Box
 from util.logger import logger
 
@@ -107,7 +107,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         dbscan_img = cv2.cvtColor(img2_mask_in, cv2.COLOR_RGB2GRAY)
         dbscan_img = cv2.resize(dbscan_img, dsize=(256 * k, 171 * k))
 
-        labels, h_labels = find_chunks(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count)
+        labels, h_labels = find_clusters(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count)
 
         if len(h_labels) < 1:
             return
