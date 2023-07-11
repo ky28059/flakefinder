@@ -1,25 +1,11 @@
 import matplotlib
 import matplotlib.pyplot as plt
-from util.leica import Dimensions
+from util.leica import location, Dimensions
 
 matplotlib.use('tkagg')
 
 
-def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: supposed to be a float?
-    """
-    Gets the (x, y) location of the mth scan image given the width and height of the scan.
-    :param m: The index to locate.
-    :param dims: The dimensions of the scan, as a tuple of (width, height).
-    :return: The location, as a tuple of (x, y, height - 1, width - 1)
-    """
-    width, height = dims
-    row = m % height
-    column = (m - row) / height
-    print(f"Location for {m}: {column}, {row}")
-    return column, row, height - 1, width - 1
-
-
-def make_plot(mlist, dims: Dimensions, directory: str) -> list[list[float]]:
+def make_plot(mlist: list[int], dims: Dimensions, directory: str) -> list[list[float]]:
     imx = 1314.09 / 1000
     imy = 875.89 / 1000  # mm
     parr = []
@@ -27,14 +13,14 @@ def make_plot(mlist, dims: Dimensions, directory: str) -> list[list[float]]:
     print(mlist)
 
     for m in mlist:
-        x, y, maxy, maxx = location(m, dims)
-        print(x, y, maxy, maxx)
+        x, y, max_y, max_x = location(m, dims)
+        print(x, y, max_y, max_x)
         plt.scatter(x * imx, y * imy)
         plt.text(x * imx, y * imy + .03, m, fontsize=9)
         parr.append([m, round(x * imx, 1), round(y * imy, 1)])
 
-    bound_x = [0, maxx * imx, maxx * imx, 0, 0]
-    bound_y = [0, 0, maxy * imy, maxy * imy, 0]
+    bound_x = [0, max_x * imx, max_x * imx, 0, 0]
+    bound_y = [0, 0, max_y * imy, max_y * imy, 0]
 
     plt.plot(bound_x, bound_y)
     plt.gca().invert_yaxis()

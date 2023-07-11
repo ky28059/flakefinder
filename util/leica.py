@@ -6,7 +6,7 @@ import argparse
 Dimensions = tuple[int, int]
 
 
-def pos_get(input_dir: str) -> np.ndarray:
+def pos_get(input_dir: str) -> np.ndarray[float]:
     """
     Gets the scan dimensions and positions contained in a leica metadata file.
     :param input_dir: The directory containing the microscope file.
@@ -32,6 +32,20 @@ def dim_get(input_dir: str) -> Dimensions:
     ymax = int(np.max(data[:, 2]))
 
     return xmax + 1, ymax + 1
+
+
+def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: supposed to be a float?
+    """
+    Gets the (x, y) location of the mth scan image given the width and height of the scan.
+    :param m: The index to locate.
+    :param dims: The dimensions of the scan, as a tuple of (width, height).
+    :return: The location, as a tuple of (x, y, height - 1, width - 1)
+    """
+    width, height = dims
+    row = m % height
+    column = (m - row) / height
+    print(f"Location for {m}: {column}, {row}")
+    return column, row, height - 1, width - 1
 
 
 if __name__ == '__main__':
