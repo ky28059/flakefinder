@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
+import argparse
 import cv2
 import numpy as np
 
@@ -38,39 +39,54 @@ def threshold(img0):
 
 
 if __name__ == "__main__":
-    # Run all the flake color logic first, since that isn't what's being benchmarked here
-    # TODO: make this more efficient?
-    img0 = cv2.imread("C:\\04_03_23_EC_1\\Scan 002\\TileScan_001\\TileScan_001--Stage246.jpg")
-    img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
+    # TODO: new description or abstract
+    parser = argparse.ArgumentParser(
+        description="Find graphene flakes on SiO2. Currently configured only for exfoliator dataset"
+    )
+    parser.add_argument(
+        "--s",
+        required=True,
+        type=int,
+        nargs="+",
+        help="Scan stages to test (ex. --s 246 248 250)"
+    )
+    args = parser.parse_args()
 
-    lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
-    highlim = np.array([114, 118, 114])
+    for s in args.s:
+        # Run all the flake color logic first, since that isn't what's being benchmarked here
+        # TODO: make this more efficient?
+        # TODO: don't hard-code the input directory?
+        img0 = cv2.imread(f"C:\\04_03_23_EC_1\\Scan 002\\TileScan_001\\TileScan_001--Stage{s}.jpg")
+        img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
 
-    imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
-    test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
-    pixout = imsmall * np.sign(test + abs(test))
+        lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
+        highlim = np.array([114, 118, 114])
 
-    back_rgb = get_avg_rgb(pixout)
-    flake_avg_rgb = bg_to_flake_color(back_rgb)
-    flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
+        imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
+        test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
+        pixout = imsmall * np.sign(test + abs(test))
 
-    # Benchmark classical
-    tik = time.time()
-    masked = classical(img0)
-    tok = time.time()
+        back_rgb = get_avg_rgb(pixout)
+        flake_avg_rgb = bg_to_flake_color(back_rgb)
+        flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
 
-    cv2.namedWindow("classical", cv2.WINDOW_NORMAL)
-    cv2.imshow("classical", cv2.cvtColor(masked, cv2.COLOR_RGB2BGR))
-    cv2.waitKey()
+        # Benchmark classical
+        tik = time.time()
+        masked = classical(img0)
+        tok = time.time()
 
-    print(f"Finished classical in {tok - tik} seconds")
+        cv2.namedWindow("classical", cv2.WINDOW_NORMAL)
+        cv2.imshow("classical", cv2.cvtColor(masked, cv2.COLOR_RGB2BGR))
+        cv2.waitKey()
 
-    # Benchmark cv2 thresholding
-    tik = time.time()
-    masked = threshold(img0)
-    tok = time.time()
+        print(f"Finished classical mask for {s} in {tok - tik} seconds")
 
-    cv2.imshow("classical", masked)
-    cv2.waitKey()
+        # Benchmark cv2 thresholding
+        tik = time.time()
+        masked = threshold(img0)
+        tok = time.time()
 
-    print(f"Finished threshold in {tok - tik} seconds")
+        cv2.imshow("classical", masked)
+        cv2.waitKey()
+
+        print(f"Finished threshold mask for {s} in {tok - tik} seconds")

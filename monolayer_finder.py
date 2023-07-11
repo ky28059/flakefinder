@@ -212,7 +212,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
 
 def main(args):
-    config = load_config(args.q or "Queue.txt")
+    config = load_config(args.q)
 
     for input_dir, output_dir in config:
         os.makedirs(output_dir, exist_ok=True)
@@ -295,8 +295,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--q",
-        required=False,
         type=str,
+        default="Queue.txt",
         help="Directory containing images to process. Optional unless running in headless mode"
     )
     args = parser.parse_args()

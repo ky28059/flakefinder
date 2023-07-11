@@ -1,6 +1,14 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+
 import numpy as np
 import re
 import argparse
+
+from util.logger import logger
+from util.config import load_config
 
 
 Dimensions = tuple[int, int]
@@ -49,20 +57,17 @@ def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: 
 
 
 if __name__ == '__main__':
-    from logger import logger
-    from config import load_config
-
     # TODO: new description or abstract
     parser = argparse.ArgumentParser(
         description="Find graphene flakes on SiO2. Currently configured only for exfoliator dataset"
     )
     parser.add_argument(
         "--q",
-        required=False,
         type=str,
+        default="Queue.txt",
         help="Directory containing images to process. Optional unless running in headless mode"
     )
     args = parser.parse_args()
 
-    for input_dir, _ in load_config(args.q or "Queue.txt"):
+    for input_dir, _ in load_config(args.q):
         logger.info(f"Found dimensions for {input_dir}: {dim_get(input_dir)}")
