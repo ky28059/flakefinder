@@ -17,7 +17,7 @@ if __name__ == '__main__':
         "--n",
         required=True,
         type=str,
-        help="The name of the downloaded directory (ex. `04_03_23_EC_1`)"
+        help="The name of the original directory (ex. `04_03_23_EC_1`)"
     )
     parser.add_argument(
         "--t",

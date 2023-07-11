@@ -31,6 +31,19 @@ the image is discarded. This makes for fast filtering of images with no relevant
 * `t_max_cluster_pixel_count`: maximum points a DBScan cluster can have to be valid
 * `scale`: The output resolution of images with identified flakes, relative to the input resolution. Does not affect DBscan. Set to 1 for identical input/output
 
+### Scripts
+| Name                  | Description                                                                                                                              | Arguments                                                                                                |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `monolayer_finder.py` | Parses scan images and labels detected monolayer flakes. See [Usage](#usage) for more.                                                   | `--q`: path to an input file that specifies input and output directories to parse (see [Usage](#usage)). |
+<!-- TODO: parstich.py -->
+
+`/scripts` also contains helper scripts for development:
+
+| Name                | Description                                                                                                                              | Arguments                                                                                                                                                                                                                                                                                |
+|---------------------|------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `gdrive_unzip.py`   | Helper script to unzip and merge chunked zips created when downloading a large folder from Google Drive.                                 | Given a zip file with name `04_03_23_EC_1-20230706T020731Z-006.zip`,<br/><br/>`--i`: path to the directory containing the zips.<br/>`--n`: the name of the original directory (ex. `04_03_23_EC_1`).<br/>`--t`: the download timestamp appended to each folder (ex. `20230706T020731Z`). |
+| `threshold_test.py` | Script to benchmark and tune the more performant flake area / edge finding algorithm using OpenCV thresholds on individual stage images. | `--s:`: scan stages to test (passed as a list, ex. `--s 246 248 250`)                                                                                                                                                                                                                    |
+
 ### Suggested Tuning:
 - Set k to 4 for higher quality results (with somewhat slower processing time)
 - Increase filters `t_hue_dist` and especially `t_rgb_dist` to include more potential images.
