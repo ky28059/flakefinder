@@ -22,6 +22,24 @@ def bg_to_flake_color(rgb: RGB) -> FlakeRGB:
     return np.array([flake_red, flake_green, flake_blue])
 
 
+def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
+    """
+    Gets the average RGB within a given array of RGB values.
+    :param img: The image to process.
+    :param mask: An optional mask to apply to RGB values.
+    :return: The average RGB.
+    """
+    red_freq = np.bincount(img[:, 0] * mask)
+    green_freq = np.bincount(img[:, 1] * mask)
+    blue_freq = np.bincount(img[:, 2] * mask)
+
+    red_freq[0] = 0  # otherwise argmax finds values masked to 0
+    green_freq[0] = 0
+    blue_freq[0] = 0
+
+    return [red_freq.argmax(), green_freq.argmax(), blue_freq.argmax()]
+
+
 # this identifies the edges of flakes, resource-intensive but useful for determining if flake ID is working
 def edgefind(imchunk: np.ndarray, avg_rgb: FlakeRGB, pixcals: list[float], t_rgb_dist: int) -> tuple[RGB, any, float]:  # TODO
     """
@@ -38,15 +56,8 @@ def edgefind(imchunk: np.ndarray, avg_rgb: FlakeRGB, pixcals: list[float], t_rgb
     impix = imchunk.copy().reshape(-1, 3)
     flakeid = np.sqrt(np.sum((impix - avg_rgb) ** 2, axis=1)) < t_rgb_dist  # a mask for pixel color
 
-    red_freq = np.bincount(impix[:, 0] * flakeid)
-    green_freq = np.bincount(impix[:, 1] * flakeid)
-    blue_freq = np.bincount(impix[:, 2] * flakeid)
-    red_freq[0] = 0  # otherwise argmax finds values masked to 0 by flakeid
-    green_freq[0] = 0
-    blue_freq[0] = 0
-
     # determines flake RGB as the most common R,G,B value in identified flake region
-    rgb = [red_freq.argmax(), green_freq.argmax(), blue_freq.argmax()]
+    rgb = get_avg_rgb(impix, flakeid)
 
     h, w, c = imchunk.shape
     flakeid2 = np.sqrt(np.sum((impix - rgb) ** 2, axis=1)) < 5  # a mask for pixel color

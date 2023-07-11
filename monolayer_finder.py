@@ -16,7 +16,8 @@ from sklearn.cluster import DBSCAN
 from util.config import load_config
 from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, edgefind, merge_boxes, Box
+from util.processing import bg_to_flake_color, get_avg_rgb, edgefind
+from util.box import merge_boxes, Box
 from util.logger import logger
 
 
@@ -70,8 +71,10 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
     img0 = cv2.imread(img_filepath)
     img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
     h, w, c = img.shape
+
     pixcal = 1314.08 / w  # microns/pixel from Leica calibration
     pixcals = [pixcal, 876.13 / h]
+
     img_pixels = img.copy().reshape(-1, 3)
     lowlim = np.array([87, 100, 99])  # np.array([108,100,99])#defines lower limit for what code can see as background
     highlim = np.array([114, 118, 114])  # np.array([140,165,135])
@@ -84,24 +87,13 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # print('Pixel failed')
         return
 
-    red_freq = np.bincount(pixout[:, 0])
-    green_freq = np.bincount(pixout[:, 1])
-    blue_freq = np.bincount(pixout[:, 2])
-    red_freq[0] = 0  # otherwise argmax finds values masked to 0 by pixout
-    green_freq[0] = 0
-    blue_freq[0] = 0
-
-    reddest = red_freq.argmax()
-    greenest = green_freq.argmax()
-    bluest = blue_freq.argmax()
-    backrgb = [reddest, greenest, bluest]  # defining background color
-
-    # Get monolayer color from background color, and calculate  distance between each pixel and predicted flake RGB
-    avg_rgb = bg_to_flake_color(backrgb)
-    rgb_pixel_dists = np.sqrt(np.sum((img_pixels - avg_rgb) ** 2, axis=1))
+    # Get monolayer color from background color, and calculate distance between each pixel and predicted flake RGB
+    back_rgb = get_avg_rgb(pixout)
+    flake_avg_rgb = bg_to_flake_color(back_rgb)
+    rgb_pixel_dists = np.sqrt(np.sum((img_pixels - flake_avg_rgb) ** 2, axis=1))
 
     # Mask the image to only the pixels close enough to predicted flake color
-    img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, reddest - img_pixels[:, 0] > 5)
+    img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, back_rgb[0] - img_pixels[:, 0] > 5)
 
     # If the number of close pixels is under the threshold, return early
     t_count = np.sum(img_mask)
@@ -220,14 +212,14 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         flakergb = [0, 0, 0]
         farea = 0
         if boundflag:
-            flakergb, edgeim, farea = edgefind(imchunk, avg_rgb, pixcals)  # calculating border pixels
+            flakergb, edgeim, farea = edgefind(imchunk, flake_avg_rgb, pixcals)  # calculating border pixels
             print('Edge found')
             img4 = cv2.rectangle(img4, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
             img4 = cv2.putText(img4, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
             img4 = cv2.putText(img4, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
             img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] = img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] + edgeim
 
-        logstr = str(stage) + ',' + str(farea) + ',' + str(flakergb[0]) + ',' + str(flakergb[1]) + ',' + str(flakergb[2]) + ',' + str(backrgb[0]) + ',' + str(backrgb[1]) + ',' + str(backrgb[2])
+        logstr = str(stage) + ',' + str(farea) + ',' + str(flakergb[0]) + ',' + str(flakergb[1]) + ',' + str(flakergb[2]) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
         log_file.write(logstr + '\n')
 
     log_file.close()
