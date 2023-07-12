@@ -45,7 +45,7 @@ t_red_dist = 12
 # t_red_cutoff = 0.1 #fraction of the chunked image that must be more blue than red to be binned
 t_color_match_count = 0.000225  # fraction of image that must look like monolayers
 k = 4
-t_min_cluster_pixel_count = 50 * 50  # flake too small
+t_min_cluster_pixel_count = 30 * 25  # flake too small
 # t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
 # scale factor for DB scan. recommended values are 3 or 4. Trade-off in time vs accuracy. Impact epsilon.
 scale = 1  # the resolution images are saved at, relative to the original file. Does not affect DB scan
@@ -120,7 +120,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         log_file = open(output_dir + "Color Log.txt", "a+")
 
-        stage = int(re.search(r"Stage(\d{3})", img_filepath).group(1))
+        stage = int(re.search(r"Stage(\d{3,4})", img_filepath).group(1))
         imloc = location(stage, dims)
 
         # Convert back from (x, y) scan number to mm coordinates
@@ -234,7 +234,7 @@ def main(args):
         fwrite.close()
         fwrite = open(output_dir + "By Area.txt", "a+")
 
-        stages = np.sort(np.array([int(re.search(r"Stage(\d{3})", file).group(1)) for file in output_files]))
+        stages = np.sort(np.array([int(re.search(r"Stage(\d{3,4})", file).group(1)) for file in output_files]))
         make_plot(stages, dims, output_dir)  # creating cartoon for file
         flist.close()
 

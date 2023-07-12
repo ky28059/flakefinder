@@ -52,7 +52,7 @@ def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: 
     width, height = dims
     row = m % height
     column = (m - row) / height
-    print(f"Location for {m}: {column}, {row}")
+
     return column, row, height - 1, width - 1
 
 

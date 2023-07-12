@@ -12,7 +12,7 @@ from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, ap
 
 k = 4
 t_rgb_dist = 8
-t_min_cluster_pixel_count = 50 * 50  # flake too small
+t_min_cluster_pixel_count = 30 * 25  # flake too small
 
 
 def classical(img0):
@@ -118,15 +118,16 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         for cnt in contours:
-            if cv2.contourArea(cnt) < t_min_cluster_pixel_count: continue
+            if cv2.contourArea(cnt) < t_min_cluster_pixel_count:
+                continue
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
         cv2.imshow("threshold", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         cv2.waitKey()
 
-        processed = cv2.imread(f"C:\\04_03_23_EC_1\\MLScanned2\\TileScan_001--Stage{s}.jpg")
-        cv2.imshow("threshold", processed)
+        baseline = cv2.imread(f"C:\\04_03_23_EC_1\\MLScanned2\\TileScan_001--Stage{s}.jpg")
+        cv2.imshow("threshold", baseline)
         cv2.waitKey()
 
         print(f"Finished contour search in {tok - tik} seconds")
