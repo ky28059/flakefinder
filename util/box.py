@@ -4,7 +4,8 @@ import numpy as np
 
 @dataclass
 class Box:
-    label: str
+    contours: np.ndarray
+    area: int
     x: int
     y: int
     width: int
@@ -54,7 +55,12 @@ def merge_boxes(dbscan_img, boxes: list[Box], eliminated_indexes: list[int] = []
 
                 new_width = x_max - x_min
                 new_height = y_max - y_min
-                i = Box(i.label, x_min, y_min, new_width, new_height)
+                i = Box(
+                    np.concatenate([i.contours, j.contours]),
+                    i.area + j.area,
+                    x_min, y_min,
+                    new_width, new_height
+                )
                 eliminated_indexes.append(_j)
         merged.append(i)
 

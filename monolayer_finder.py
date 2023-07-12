@@ -15,7 +15,7 @@ import matplotlib
 from util.config import load_config
 from util.leica import dim_get, pos_get
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_avg_rgb, find_clusters, edgefind
+from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
 from util.box import merge_boxes, Box
 from util.logger import logger
 
@@ -45,8 +45,8 @@ t_red_dist = 12
 # t_red_cutoff = 0.1 #fraction of the chunked image that must be more blue than red to be binned
 t_color_match_count = 0.000225  # fraction of image that must look like monolayers
 k = 4
-t_min_cluster_pixel_count = 30 * (k / 4) ** 2  # flake too small
-t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
+t_min_cluster_pixel_count = 50 * 50  # flake too small
+# t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
 # scale factor for DB scan. recommended values are 3 or 4. Trade-off in time vs accuracy. Impact epsilon.
 scale = 1  # the resolution images are saved at, relative to the original file. Does not affect DB scan
 
@@ -60,9 +60,9 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         h, w, c = img.shape
 
         pixcal = 1314.08 / w  # microns/pixel from Leica calibration
-        pixcals = [pixcal, 876.13 / h]
+        # pixcals = [pixcal, 876.13 / h]
 
-        lowlim = np.array([87, 100, 99]) # defines lower limit for what code can see as background
+        lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
         highlim = np.array([114, 118, 114])
 
         imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
@@ -77,20 +77,10 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # Get monolayer color from background color, and calculate distance between each pixel and predicted flake RGB
         back_rgb = get_avg_rgb(pixout)
         flake_avg_rgb = bg_to_flake_color(back_rgb)
+        flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
 
+        # TODO: necessary?
         img_pixels = img.copy().reshape(-1, 3)
-        rgb_pixel_dists = np.sqrt(np.sum((img_pixels - flake_avg_rgb) ** 2, axis=1))
-
-        # Mask the image to only the pixels close enough to predicted flake color
-        img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, back_rgb[0] - img_pixels[:, 0] > 5)
-
-        # If the number of close pixels is under the threshold, return early
-        t_count = np.sum(img_mask)
-        if t_count < t_color_match_count * len(img_pixels):
-            # print('Count failed', t_count)
-            return
-
-        logger.debug(f"{img_filepath} meets count thresh with {t_count}")
 
         # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
         pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
@@ -98,52 +88,36 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
             logger.debug(f"{img_filepath} was on an edge!")
             return
 
-        # Create Masked image
-        img2_mask_in = img.copy().reshape(-1, 3)
-        img2_mask_in[~img_mask] = np.array([0, 0, 0])
-        img2_mask_in = img2_mask_in.reshape(img.shape)
+        # Mask image using thresholds and apply morph operations to reduce false positives
+        masked = mask_flake_color(img0, flake_avg_hsv)
+        dst = apply_morph_open(masked)
+        dst = apply_morph_close(dst)
 
-        # DB SCAN, fitting to find clusters of correctly colored pixels
-        dbscan_img = cv2.cvtColor(img2_mask_in, cv2.COLOR_RGB2GRAY)
-        dbscan_img = cv2.resize(dbscan_img, dsize=(256 * k, 171 * k))
+        # Find contours of masked and processed image
+        contours, _ = cv2.findContours(dst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-        labels, h_labels = find_clusters(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count)
-
-        if len(h_labels) < 1:
+        if len(contours) < 1:
             return
-        logger.debug(f"{img_filepath} had {len(h_labels)} filtered dbscan clusters")
+        logger.debug(f"{img_filepath} had {len(contours)} filtered dbscan clusters")
 
         # Make boxes
         boxes = []
-        for label_id in h_labels:
-            # Find bounding box... in x/y plane find min value. This is just argmin and argmax
-            criteria = labels == label_id
-            criteria = criteria.reshape(dbscan_img.shape[:2]).astype(np.uint8)
-            x = np.where(criteria.sum(axis=0) > 0)[0]
-            y = np.where(criteria.sum(axis=1) > 0)[0]
-            width = x.max() - x.min()
-            height = y.max() - y.min()
-            boxes.append(Box(label_id, x.min(), y.min(), width, height))
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            area = cv2.contourArea(cnt)
+
+            if area < t_min_cluster_pixel_count:
+                continue
+            boxes.append(Box(cnt, area, x, y, w, h))
 
         # Merge boxes that overlap
-        pass_one = merge_boxes(dbscan_img, boxes)
-        merged_boxes = merge_boxes(dbscan_img, pass_one)
+        # merged_boxes = merge_boxes(masked, boxes)
+        # merged_boxes = merge_boxes(masked, merged_boxes)
+        merged_boxes = boxes
 
         if not merged_boxes:
             return
 
-        # Make patches out of clusters
-        wantshape = (int(int(img.shape[1]) * scale), int(int(img.shape[0]) * scale))
-        bscale = wantshape[0] / (256 * k)  # need to scale up box from dbscan image
-        offset = 5
-        patches = [
-            [int((int(b.x) - offset) * bscale), int((int(b.y) - offset) * bscale),
-             int((int(b.width) + 2 * offset) * bscale), int((int(b.height) + 2 * offset) * bscale)] for b
-            in merged_boxes
-        ]
-        logger.debug('patched')
-        color = (0, 0, 255)
-        thickness = 6
         log_file = open(output_dir + "Color Log.txt", "a+")
 
         stage = int(re.search(r"Stage(\d{3})", img_filepath).group(1))
@@ -157,53 +131,49 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
             radius = (int(imloc[0]) - int(scan_pos_dict[i][0])) ** 2 + (int(imloc[1]) - int(scan_pos_dict[i][2])) ** 2
         posx = scan_pos_dict[i][1]
         posy = scan_pos_dict[i][3]
-        posstr = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
+        pos_str = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
 
-        img0 = cv2.putText(img0, posstr, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 2, cv2.LINE_AA)
+        # Label output images
+        color = (0, 0, 255)
+        thickness = 6
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        img0 = cv2.putText(img0, pos_str, (100, 100), font, 3, (0, 0, 0), 2, cv2.LINE_AA)
         img4 = img0.copy()
 
-        for p in patches:
-            logger.debug(p)
-            y_min = int(p[0] + 2 * offset * bscale / 3)
-            y_max = int(p[0] + p[2] - 2 * offset * bscale / 3)
-            x_min = int(p[1] + 2 * offset * bscale / 3)
-            x_max = int(p[1] + p[3] - 2 * offset * bscale / 3)  # note that the offsets cancel here
-            logger.debug((x_min, y_min, x_max, y_max))
-            bounds = [max(0, p[1]), min(p[1] + p[3], int(h)), max(0, p[0]), min(p[0] + p[2], int(w))]
-            imchunk = img[bounds[0]:bounds[1], bounds[2]:bounds[3]]  # identifying bounding box of flake
+        offset = 5
+        for b in merged_boxes:
+            offset_x = int(b.x) - offset
+            offset_y = int(b.y) - offset
+            offset_w = int(b.width) + 2 * offset
+            offset_h = int(b.height) + 2 * offset
 
-            width = round(p[2] * pixcal, 1)
-            height = round(p[3] * pixcal, 1)  # microns
+            width_microns = round(offset_w * pixcal, 1)
+            height_microns = round(offset_h * pixcal, 1)  # microns
+
+            logger.debug((offset_x + offset_w + 10, offset_y + int(offset_h / 2)))
 
             # creating the output images
-            img3 = cv2.rectangle(img0, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
-            img3 = cv2.putText(img3, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                               (0, 0, 0), 2, cv2.LINE_AA)
-            img3 = cv2.putText(img3, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2,
-                               cv2.LINE_AA)
+            img3 = cv2.rectangle(img0, (offset_x, offset_y), (offset_x + offset_w, offset_y + offset_h), color, thickness)
+            img3 = cv2.putText(img3, str(height_microns), (offset_x + offset_w + 10, offset_y + int(offset_h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+            img3 = cv2.putText(img3, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
-            flake_rgb = [0, 0, 0]
-            farea = 0
             if boundflag:
-                flake_rgb, edgeim, farea = edgefind(imchunk, flake_avg_rgb, pixcals, t_rgb_dist)  # calculating border pixels
-                print('Edge found')
-                img4 = cv2.rectangle(img4, (p[0], p[1]), (p[0] + p[2], p[1] + p[3]), color, thickness)
-                img4 = cv2.putText(img4, str(height), (p[0] + p[2] + 10, p[1] + int(p[3] / 2)),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
-                img4 = cv2.putText(img4, str(width), (p[0], p[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2,
-                                   cv2.LINE_AA)
-                img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] = img4[bounds[0]:bounds[1], bounds[2]:bounds[3]] + edgeim
+                logger.debug('Drawing contour bounds...')
+                img4 = cv2.rectangle(img4, (offset_x, offset_y), (offset_x + offset_w, offset_y + offset_h), color, thickness)
+                img4 = cv2.putText(img4, str(height_microns), (offset_x + offset_w + 10, offset_y + int(offset_h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+                img4 = cv2.putText(img4, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+                img4 = cv2.drawContours(img4, b.contours, -1, (0, 0, 255), 2)
 
-            logstr = str(stage) + ',' + str(farea) + ',' + str(flake_rgb[0]) + ',' + str(flake_rgb[1]) + ',' + str(
-                flake_rgb[2]) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
-            log_file.write(logstr + '\n')
+            log_str = str(stage) + ',' + str(b.area) + ',' + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
+            log_file.write(log_str + '\n')
 
         log_file.close()
 
         cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img3)
         if boundflag:
-            cv2.imwrite(
-                os.path.join(output_dir + "\\AreaSort\\", str(int(farea)) + '_' + os.path.basename(img_filepath)), img4)
+            cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(int(b.area)) + '_' + os.path.basename(img_filepath)), img4)
+
     except Exception as e:
         logger.warn(f"Exception occurred: {e}")
 
@@ -253,7 +223,6 @@ def main(args):
             # f.write('t_red_cutoff='+str(t_red_cutoff)+'\n')
             f.write('t_color_match_count=' + str(t_color_match_count) + '\n')
             f.write('t_min_cluster_pixel_count=' + str(t_min_cluster_pixel_count) + '\n')
-            f.write('t_max_cluster_pixel_count=' + str(t_max_cluster_pixel_count) + '\n')
             f.write('k=' + str(k) + "\n\n")
 
         flist = open(output_dir + "Imlist.txt", "w+")

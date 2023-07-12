@@ -8,10 +8,11 @@ import argparse
 import cv2
 import numpy as np
 
-from util.processing import bg_to_flake_color, get_avg_rgb
+from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
 
 k = 4
 t_rgb_dist = 8
+t_min_cluster_pixel_count = 50 * 50  # flake too small
 
 
 def classical(img0):
@@ -27,15 +28,6 @@ def classical(img0):
     img2_mask_in[~img_mask] = np.array([0, 0, 0])
 
     return img2_mask_in.reshape(img.shape)
-
-
-def threshold(img0):
-    img = cv2.cvtColor(img0, cv2.COLOR_BGR2HSV)
-
-    lower = tuple(map(int, flake_avg_hsv - (6, 25, 25)))
-    higher = tuple(map(int, flake_avg_hsv + (6, 25, 25)))
-
-    return cv2.inRange(img, lower, higher)
 
 
 if __name__ == "__main__":
@@ -91,7 +83,7 @@ if __name__ == "__main__":
 
         # Benchmark cv2 thresholding
         tik = time.time()
-        masked = threshold(img0)
+        masked = mask_flake_color(img0, flake_avg_hsv)
         tok = time.time()
 
         cv2.imshow("threshold", masked)
@@ -100,9 +92,7 @@ if __name__ == "__main__":
         print(f"Finished threshold mask for {s} in {tok - tik} seconds")
 
         tik = time.time()
-        morph_size = 7
-        element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
-        dst = cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
+        dst = apply_morph_open(masked)
         tok = time.time()
 
         cv2.imshow("threshold", dst)
@@ -111,9 +101,7 @@ if __name__ == "__main__":
         print(f"Finished open morph in {tok - tik} seconds")
 
         tik = time.time()
-        morph_size = 14
-        element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
-        dst = cv2.morphologyEx(dst, cv2.MORPH_CLOSE, element)
+        dst = apply_morph_close(dst)
         tok = time.time()
 
         cv2.imshow("threshold", dst)
@@ -122,7 +110,7 @@ if __name__ == "__main__":
         print(f"Finished close morph in {tok - tik} seconds")
 
         tik = time.time()
-        contours, _ = cv2.findContours(dst, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(dst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         dst = cv2.drawContours(cv2.cvtColor(dst, cv2.COLOR_GRAY2BGR), contours, -1, (0, 0, 255), 2)
         tok = time.time()
 
@@ -130,11 +118,15 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         for cnt in contours:
-            # if cv2.contourArea(cnt) < t_min_cluster_pixel_count: continue
+            if cv2.contourArea(cnt) < t_min_cluster_pixel_count: continue
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
         cv2.imshow("threshold", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.waitKey()
+
+        processed = cv2.imread(f"C:\\04_03_23_EC_1\\MLScanned2\\TileScan_001--Stage{s}.jpg")
+        cv2.imshow("threshold", processed)
         cv2.waitKey()
 
         print(f"Finished contour search in {tok - tik} seconds")
