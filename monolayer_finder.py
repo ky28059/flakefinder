@@ -55,6 +55,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
     tik = time.time()
 
     try:
+        stage = int(re.search(r"Stage(\d{3,4})", img_filepath).group(1))
+
         img0 = cv2.imread(img_filepath)
         img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
         h, w, c = img.shape
@@ -65,16 +67,19 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
         highlim = np.array([114, 118, 114])
 
+        # chooses pixels between provided limits, quickly filtering to potential background pixels
+        start = time.time()
         imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
         test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
-
-        # chooses pixels between provided limits, quickly filtering to potential background pixels
         pixout = imsmall * np.sign(test + abs(test))
+        end = time.time()
+
+        logger.debug(f"Stage{stage} background detection in {end - start} seconds")
+
         if len(pixout) == 0:  # making sure background is identified
-            # print('Pixel failed')
             return
 
-        # Get monolayer color from background color, and calculate distance between each pixel and predicted flake RGB
+        # Get monolayer color from background color
         back_rgb = get_avg_rgb(pixout)
         flake_avg_rgb = bg_to_flake_color(back_rgb)
         flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
@@ -83,24 +88,37 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         img_pixels = img.copy().reshape(-1, 3)
 
         # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
+        start = time.time()
         pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
+
         if np.sum(pixdark) / len(img_pixels) > 0.1:
-            logger.debug(f"{img_filepath} was on an edge!")
+            logger.debug(f"Stage{stage} was on an edge!")
             return
 
+        end = time.time()
+        logger.debug(f"Stage{stage} tested for dark pixels in {end - start} seconds")
+
         # Mask image using thresholds and apply morph operations to reduce false positives
+        start = time.time()
         masked = mask_flake_color(img0, flake_avg_hsv)
         dst = apply_morph_open(masked)
         dst = apply_morph_close(dst)
+        end = time.time()
+
+        logger.debug(f"Stage{stage} thresholded and transformed in {end - start} seconds")
 
         # Find contours of masked and processed image
+        start = time.time()
         contours, _ = cv2.findContours(dst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        end = time.time()
 
         if len(contours) < 1:
             return
-        logger.debug(f"{img_filepath} had {len(contours)} filtered dbscan clusters")
+        logger.debug(f"Stage{stage} had {len(contours)} contours in {end - start} seconds")
 
         # Make boxes
+        start = time.time()
+
         boxes = []
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
@@ -110,17 +128,21 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
                 continue
             boxes.append(Box(cnt, area, x, y, w, h))
 
+        end = time.time()
+        logger.debug(f"Stage{stage} generated boxes in {end - start} seconds")
+
         # Merge boxes that overlap
-        # merged_boxes = merge_boxes(masked, boxes)
-        # merged_boxes = merge_boxes(masked, merged_boxes)
-        merged_boxes = boxes
+        start = time.time()
+        merged_boxes = merge_boxes(masked, boxes)
+        merged_boxes = merge_boxes(masked, merged_boxes)
+        end = time.time()
+
+        logger.debug(f"Stage{stage} merged boxes in {end - start} seconds")
 
         if not merged_boxes:
             return
 
         log_file = open(output_dir + "Color Log.txt", "a+")
-
-        stage = int(re.search(r"Stage(\d{3,4})", img_filepath).group(1))
         imloc = location(stage, dims)
 
         # Convert back from (x, y) scan number to mm coordinates
@@ -134,6 +156,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         pos_str = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
 
         # Label output images
+        start = time.time()
         color = (0, 0, 255)
         thickness = 6
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -169,10 +192,18 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
             log_file.write(log_str + '\n')
 
         log_file.close()
+        end = time.time()
 
+        logger.debug(f"Stage{stage} labelled images in {end - start} seconds")
+
+        start = time.time()
         cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img3)
+
         if boundflag:
             cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(int(b.area)) + '_' + os.path.basename(img_filepath)), img4)
+
+        end = time.time()
+        logger.debug(f"Stage{stage} saved images in {end - start} seconds")
 
     except Exception as e:
         logger.warn(f"Exception occurred: {e}")
