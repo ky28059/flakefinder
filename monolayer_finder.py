@@ -10,7 +10,6 @@ from multiprocessing import Pool
 
 import cv2
 import numpy as np
-import matplotlib
 
 from util.config import load_config
 from util.leica import dim_get, pos_get
@@ -20,35 +19,12 @@ from util.box import merge_boxes, Box
 from util.logger import logger
 
 
-flake_colors_rgb = [
-    # # Thick-looking
-    # [6, 55, 94],
-    # Monolayer-looking
-    # [57, 65, 86],
-    # [60, 66, 85],
-    # [89,99,109],
-    [0, 0, 0],
-]
-flake_colors_hsv = [
-    np.uint8(matplotlib.colors.rgb_to_hsv(x) * np.array([179, 255, 255])) for x in flake_colors_rgb
-    # matplotlib outputs in range 0,1. Opencv expects HSV images in range [0,0,0] to [179, 255,255]
-]
-flake_color_hsv = np.mean(flake_colors_hsv, axis=0)
-avg_rgb = np.mean(flake_colors_rgb, axis=0)
-
-output_dir = 'cv_output'
 threadsave = 1  # number of threads NOT allocated when running
 boundflag = 1
-t_rgb_dist = 8
-# t_hue_dist = 12 #12
-t_red_dist = 12
-# t_red_cutoff = 0.1 #fraction of the chunked image that must be more blue than red to be binned
-t_color_match_count = 0.000225  # fraction of image that must look like monolayers
+# t_color_match_count = 0.000225  # fraction of image that must look like monolayers
 k = 4
 t_min_cluster_pixel_count = 1500  # flake too small
 # t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
-# scale factor for DB scan. recommended values are 3 or 4. Trade-off in time vs accuracy. Impact epsilon.
-scale = 1  # the resolution images are saved at, relative to the original file. Does not affect DB scan
 
 
 def run_file(img_filepath, output_dir, scan_pos_dict, dims):
@@ -247,12 +223,6 @@ def main(args):
             f.write(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
             f.write(str(filecount) + ' identified flakes\n')
 
-            f.write('flake_colors_rgb=' + str(flake_colors_rgb) + '\n')
-            f.write('t_rgb_dist=' + str(t_rgb_dist) + '\n')
-            # f.write('t_hue_dist='+str(t_hue_dist)+'\n')
-            f.write('t_red_dist=' + str(t_red_dist) + '\n')
-            # f.write('t_red_cutoff='+str(t_red_cutoff)+'\n')
-            f.write('t_color_match_count=' + str(t_color_match_count) + '\n')
             f.write('t_min_cluster_pixel_count=' + str(t_min_cluster_pixel_count) + '\n')
             f.write('k=' + str(k) + "\n\n")
 
