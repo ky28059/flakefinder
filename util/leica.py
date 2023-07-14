@@ -18,7 +18,7 @@ def pos_get(input_dir: str) -> np.ndarray[float]:
     """
     Gets the scan dimensions and positions contained in a leica metadata file.
     :param input_dir: The directory containing the microscope file.
-    :return: A 2d numpy array representing a list of [x dimension, x position (mm), y dimension, y position (mm)]
+    :return: A 2d numpy array mapping [y dimension, x dimension] to [y position (mm), x position (mm)]
     """
     with open(input_dir + "/leicametadata/TileScan_001.xlif", 'r') as file:
         rawdata = file.read()
@@ -42,8 +42,8 @@ def dim_get(input_dir: str) -> Dimensions:
     data = pos_get(input_dir)
 
     points = np.nonzero(data)
-    xmax = np.max(points[0])
-    ymax = np.max(points[1])
+    xmax = np.max(points[1])
+    ymax = np.max(points[0])
 
     return xmax + 1, ymax + 1
 

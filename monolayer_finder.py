@@ -123,7 +123,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Convert back from (x, y) scan number to mm coordinates
         try:
-            posx, posy = scan_pos_dict[int(yd), int(xd)]
+            posy, posx = scan_pos_dict[int(yd), int(xd)]
             pos_str = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
         except IndexError:
             logger.warn(f'Stage{stage} pos conversion failed!')
