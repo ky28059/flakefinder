@@ -12,7 +12,7 @@ from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, ap
 
 k = 4
 t_rgb_dist = 8
-t_min_cluster_pixel_count = 30 * 25  # flake too small
+t_min_cluster_pixel_count = 1500  # flake too small
 
 
 def classical(img0):
@@ -72,14 +72,6 @@ if __name__ == "__main__":
 
         print(f"Finished classical mask for {s} in {tok - tik} seconds")
         print("-----")
-
-        # tik = time.time()
-        # dbscan_img = cv2.cvtColor(masked, cv2.COLOR_RGB2GRAY)
-        # dbscan_img = cv2.resize(dbscan_img, dsize=(256 * k, 171 * k))
-        # _, h_labels = find_clusters(dbscan_img, t_min_cluster_pixel_count, t_max_cluster_pixel_count)
-        # tok = time.time()
-
-        # print(f"Found {len(h_labels)} clusters in {tok - tik} seconds")
 
         # Benchmark cv2 thresholding
         tik = time.time()

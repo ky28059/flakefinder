@@ -56,6 +56,15 @@ def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: 
     return column, row, height - 1, width - 1
 
 
+def get_stage(path: str) -> int:
+    """
+    Gets the stage number of a scan image given the file path.
+    :param path: The file path (ex. `C:/.../TileScan_001--Stage250.jpg`)
+    :return: The stage number (ex. `250`)
+    """
+    return int(re.search(r"Stage(\d{3,4})", path).group(1))
+
+
 if __name__ == '__main__':
     # TODO: new description or abstract
     parser = argparse.ArgumentParser(

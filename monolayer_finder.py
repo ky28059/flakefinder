@@ -4,7 +4,6 @@ Note: Currently only configured for Exfoliator tilescans. Very unlikely to work 
 import argparse
 import glob
 import os
-import re
 import time
 from multiprocessing import Pool
 
@@ -12,7 +11,7 @@ import cv2
 import numpy as np
 
 from util.config import load_config
-from util.leica import dim_get, pos_get
+from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
 from util.box import merge_boxes, Box
@@ -31,7 +30,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
     tik = time.time()
 
     try:
-        stage = int(re.search(r"Stage(\d{3,4})", img_filepath).group(1))
+        stage = get_stage(img_filepath)
 
         img0 = cv2.imread(img_filepath)
         img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
@@ -40,7 +39,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         pixcal = 1314.08 / w  # microns/pixel from Leica calibration
         # pixcals = [pixcal, 876.13 / h]
 
-        lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
+        # Lower and higher RGB limits for what code can see as background
+        lowlim = np.array([87, 100, 99])
         highlim = np.array([114, 118, 114])
 
         # chooses pixels between provided limits, quickly filtering to potential background pixels
@@ -141,6 +141,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         img4 = img0.copy()
 
         offset = 5
+        max_area = 0
+
         for b in merged_boxes:
             offset_x = int(b.x) - offset
             offset_y = int(b.y) - offset
@@ -150,6 +152,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
             width_microns = round(offset_w * pixcal, 1)
             height_microns = round(offset_h * pixcal, 1)  # microns
 
+            max_area = max(int(b.area), max_area)
             logger.debug((offset_x + offset_w + 10, offset_y + int(offset_h / 2)))
 
             # creating the output images
@@ -164,7 +167,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
                 img4 = cv2.putText(img4, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
                 img4 = cv2.drawContours(img4, b.contours, -1, (0, 0, 255), 2)
 
-            log_str = str(stage) + ',' + str(b.area) + ',' + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
+            log_str = str(stage) + ',' + str(b.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
             log_file.write(log_str + '\n')
 
         log_file.close()
@@ -176,7 +179,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img3)
 
         if boundflag:
-            cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(int(b.area)) + '_' + os.path.basename(img_filepath)), img4)
+            cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(max_area) + '_' + os.path.basename(img_filepath)), img4)
 
         end = time.time()
         logger.debug(f"Stage{stage} saved images in {end - start} seconds")
@@ -204,13 +207,16 @@ def main(args):
         tik = time.time()
         scanposdict = pos_get(input_dir)
         dims = dim_get(input_dir)
+
+        n_proc = os.cpu_count() - threadsave
         files = [
-            [f, output_dir, scanposdict, dims] for f in input_files if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]
+            [f, output_dir, scanposdict, dims] for f in input_files
+            if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]
         ]
 
-        n_proc = os.cpu_count() - threadsave  # config.jobs if config.jobs > 0 else
         with Pool(n_proc) as pool:
             pool.starmap(run_file, files)
+
         tok = time.time()
 
         output_files = [
@@ -238,7 +244,7 @@ def main(args):
         fwrite = open(output_dir + "By Area.txt", "a+")
 
         start = time.time()
-        stages = np.sort(np.array([int(re.search(r"Stage(\d{3,4})", file).group(1)) for file in output_files]))
+        stages = np.sort(np.array([get_stage(file) for file in output_files]))
         make_plot(stages, dims, output_dir)  # creating cartoon for file
         end = time.time()
 
