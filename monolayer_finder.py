@@ -119,17 +119,15 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
             return
 
         log_file = open(output_dir + "Color Log.txt", "a+")
-        imloc = location(stage, dims)
+        xd, yd, _, _ = location(stage, dims)
 
         # Convert back from (x, y) scan number to mm coordinates
-        radius = 1
-        i = -1
-        while radius > 0.1:
-            i = i + 1
-            radius = (int(imloc[0]) - int(scan_pos_dict[i][0])) ** 2 + (int(imloc[1]) - int(scan_pos_dict[i][2])) ** 2
-        posx = scan_pos_dict[i][1]
-        posy = scan_pos_dict[i][3]
-        pos_str = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
+        try:
+            posx, posy = scan_pos_dict[int(yd), int(xd)]
+            pos_str = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
+        except IndexError:
+            logger.warn(f'Stage{stage} pos conversion failed!')
+            pos_str = ""
 
         # Label output images
         start = time.time()

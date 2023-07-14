@@ -23,9 +23,14 @@ def pos_get(input_dir: str) -> np.ndarray[float]:
     with open(input_dir + "/leicametadata/TileScan_001.xlif", 'r') as file:
         rawdata = file.read()
 
+    pos_arr = np.zeros((100, 100, 2))
+
     # Match metadata <Tile> tags in the form of <Tile FieldX="..." FieldY="..." PosX="..." PosY="..." PosZ="..." />
     matches = re.findall(r"<Tile FieldX=\"(.+)\" FieldY=\"(.+)\" PosX=\"(.+)\" PosY=\"(.+)\" PosZ=\".+\" />", rawdata)
-    return np.array([[int(xd), float(posx), int(yd), float(posy)] for xd, yd, posx, posy in matches])
+    for xd, yd, posx, posy in matches:
+        pos_arr[int(yd), int(xd)] = np.array([float(posy), float(posx)])
+
+    return pos_arr
 
 
 def dim_get(input_dir: str) -> Dimensions:
@@ -36,8 +41,9 @@ def dim_get(input_dir: str) -> Dimensions:
     """
     data = pos_get(input_dir)
 
-    xmax = int(np.max(data[:, 0]))
-    ymax = int(np.max(data[:, 2]))
+    points = np.nonzero(data)
+    xmax = np.max(points[0])
+    ymax = np.max(points[1])
 
     return xmax + 1, ymax + 1
 
