@@ -5,7 +5,7 @@ logger = logging.getLogger('flakefinder')
 logger.setLevel(logging.DEBUG)
 
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 
 fh = logging.FileHandler('flakefinder.log')
 fh.setLevel(logging.DEBUG)

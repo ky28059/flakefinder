@@ -12,11 +12,9 @@ def make_plot(mlist: np.ndarray[int], dims: Dimensions, directory: str) -> list[
     imy = 875.89 / 1000  # mm
     parr = []
     plt.figure(figsize=(18, 18))
-    print(mlist)
 
     for m in mlist:
         x, y, max_y, max_x = location(m, dims)
-        print(x, y, max_y, max_x)
         plt.scatter(x * imx, y * imy)
         plt.text(x * imx, y * imy + .03, m, fontsize=9)
         parr.append([m, round(x * imx, 1), round(y * imy, 1)])

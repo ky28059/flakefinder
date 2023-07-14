@@ -260,14 +260,19 @@ def main(args):
         flist.write("List of Stage Numbers for copying to Analysis Sheet" + "\n")
         flist.close()
         flist = open(output_dir + "Imlist.txt", "a+")
+        flist.close()  # TODO: what is the purpose of this?
+
         fwrite = open(output_dir + "By Area.txt", "w+")
         fwrite.write("Num, A" + "\n")
         fwrite.close()
         fwrite = open(output_dir + "By Area.txt", "a+")
 
+        start = time.time()
         stages = np.sort(np.array([int(re.search(r"Stage(\d{3,4})", file).group(1)) for file in output_files]))
         make_plot(stages, dims, output_dir)  # creating cartoon for file
-        flist.close()
+        end = time.time()
+
+        logger.info(f"Created coordmap.jpg in {end - start} seconds")
 
         # print(output_dir+"Color Log.txt")
         N, A, Rw, Gw, Bw = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
