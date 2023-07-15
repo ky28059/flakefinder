@@ -13,7 +13,7 @@ import numpy as np
 from util.config import load_config
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
+from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, in_bounds
 from util.box import merge_boxes, Box
 from util.logger import logger
 
@@ -34,9 +34,9 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         img0 = cv2.imread(img_filepath)
         img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
-        h, w, c = img.shape
+        img_h, img_w, c = img.shape
 
-        pixcal = 1314.08 / w  # microns/pixel from Leica calibration
+        pixcal = 1314.08 / img_w  # microns/pixel from Leica calibration
         # pixcals = [pixcal, 876.13 / h]
 
         # Lower and higher RGB limits for what code can see as background
@@ -97,11 +97,14 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         boxes = []
         for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
             area = cv2.contourArea(cnt)
-
             if area < t_min_cluster_pixel_count:
                 continue
+
+            x, y, w, h = cv2.boundingRect(cnt)
+            if not in_bounds(x, y, x + w, y + h, img_w, img_h):
+                continue
+
             boxes.append(Box(cnt, area, x, y, w, h))
 
         end = time.time()

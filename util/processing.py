@@ -79,3 +79,19 @@ def apply_morph_close(masked):
 
     element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
+
+
+def in_bounds(x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> bool:
+    """
+    Gets if a flake bounded by (x1, y1) and (x2, y2) is entirely contained in another image.
+
+    :param x1: The lower-left x coordinate.
+    :param y1: The lower-left y coordinate.
+    :param x2: The upper-right x coordinate.
+    :param y2: The upper-right y coordinate.
+    :param w: The width of the box.
+    :param h: The height of the box.
+    :return: Whether the flake is entirely contained in another image.
+    """
+    delt = 0.05
+    return x2 > delt * w and y2 > delt * h and x1 < (1 - delt) * w and y1 < (1 - delt) * h
