@@ -61,7 +61,7 @@ def apply_morph_open(masked):
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The image, with the morph applied.
     """
-    morph_size = 7
+    morph_size = 3
 
     element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
@@ -75,7 +75,7 @@ def apply_morph_close(masked):
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The image, with the morph applied.
     """
-    morph_size = 14
+    morph_size = 6
 
     element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)

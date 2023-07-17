@@ -8,26 +8,8 @@ import argparse
 import cv2
 import numpy as np
 
+from config import t_min_cluster_pixel_count, k
 from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
-
-k = 4
-t_rgb_dist = 8
-t_min_cluster_pixel_count = 1500  # flake too small
-
-
-def classical(img0):
-    img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
-
-    img_pixels = img.copy().reshape(-1, 3)
-    rgb_pixel_dists = np.sqrt(np.sum((img_pixels - flake_avg_rgb) ** 2, axis=1))
-
-    img_mask = np.logical_and(rgb_pixel_dists < t_rgb_dist, back_rgb[0] - img_pixels[:, 0] > 5)
-    # t_count = np.sum(img_mask)
-
-    img2_mask_in = img.copy().reshape(-1, 3)
-    img2_mask_in[~img_mask] = np.array([0, 0, 0])
-
-    return img2_mask_in.reshape(img.shape)
 
 
 if __name__ == "__main__":
@@ -61,23 +43,12 @@ if __name__ == "__main__":
         flake_avg_rgb = bg_to_flake_color(back_rgb)
         flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
 
-        # Benchmark classical
-        tik = time.time()
-        masked = classical(img0)
-        tok = time.time()
-
-        cv2.namedWindow("threshold", cv2.WINDOW_NORMAL)
-        cv2.imshow("threshold", cv2.cvtColor(masked, cv2.COLOR_RGB2BGR))
-        cv2.waitKey()
-
-        print(f"Finished classical mask for {s} in {tok - tik} seconds")
-        print("-----")
-
         # Benchmark cv2 thresholding
         tik = time.time()
         masked = mask_flake_color(img0, flake_avg_hsv)
         tok = time.time()
 
+        cv2.namedWindow("threshold", cv2.WINDOW_NORMAL)
         cv2.imshow("threshold", masked)
         cv2.waitKey()
 
@@ -109,18 +80,55 @@ if __name__ == "__main__":
         cv2.imshow("threshold", dst)
         cv2.waitKey()
 
-        for cnt in contours:
-            if cv2.contourArea(cnt) < t_min_cluster_pixel_count:
-                continue
-            x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        mask = np.zeros(img.shape, np.uint8)
+        mask = cv2.drawContours(mask, contours, -1, (255, 255, 255), 1)
+
+        cv2.imshow("threshold", mask)
+        cv2.waitKey()
+
+        # TODO: make the mask b&w to begin with
+        lines = cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, 50, 10)
+        if lines is not None:
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                cv2.line(img, (x1, y1), (x2, y2), (192, 8, 254), 2, cv2.LINE_AA)
 
         cv2.imshow("threshold", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         cv2.waitKey()
 
-        baseline = cv2.imread(f"C:\\04_03_23_EC_1\\MLScanned2\\TileScan_001--Stage{s}.jpg")
-        cv2.imshow("threshold", baseline)
+        for cnt in contours:
+            if cv2.contourArea(cnt) < t_min_cluster_pixel_count:
+                continue
+
+            x, y, w, h = cv2.boundingRect(cnt)
+            cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+            if lines is not None:
+                # Filter (and unpack) lines contained fully within the bounding box
+                filtered = [
+                    line[0] for line in lines
+                    if line[0, 0] >= x and line[0, 1] >= y and line[0, 2] <= x + w and line[0, 3] <= y + h
+                ]
+                if len(filtered) < 2:
+                    continue
+
+                # TODO
+                x11, y11, x21, y21 = filtered[0]
+                x12, y12, x22, y22 = filtered[1]
+
+                t1 = np.arctan2(x21 - x11, y21 - y11)
+                t2 = np.arctan2(x22 - x12, y22 - y12)
+                t = (t2 - t1) % (2 * np.pi)
+
+                img3 = cv2.putText(img, str(round(np.rad2deg(t), 2)) + '°', (x + w + 10, y + int(h / 2)),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
+
+        cv2.imshow("threshold", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         cv2.waitKey()
+
+        # baseline = cv2.imread(f"C:\\04_03_23_EC_1\\MLScanned2\\TileScan_001--Stage{s}.jpg")
+        # cv2.imshow("threshold", baseline)
+        # cv2.waitKey()
 
         print(f"Finished contour search in {tok - tik} seconds")
         print("-----")

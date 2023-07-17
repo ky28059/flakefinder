@@ -7,13 +7,15 @@ sys.path.append(str(Path(__file__).parent.parent))
 import argparse
 import cv2
 import numpy as np
+
+from config import k
 from util.processing import bg_to_flake_color, get_avg_rgb
+
 import matplotlib
 import matplotlib.pyplot as plt
 
 matplotlib.use('tkagg')
 
-k = 4
 
 
 def make_histogram(x, title: str, n: int, back: int, flake: int, lim: int = 256):

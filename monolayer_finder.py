@@ -10,20 +10,13 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
+from config import threadsave, boundflag, t_min_cluster_pixel_count, k
 from util.config import load_config
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, in_bounds
 from util.box import merge_boxes, Box
 from util.logger import logger
-
-
-threadsave = 1  # number of threads NOT allocated when running
-boundflag = 1
-# t_color_match_count = 0.000225  # fraction of image that must look like monolayers
-k = 4
-t_min_cluster_pixel_count = 1500  # flake too small
-# t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
 
 
 def run_file(img_filepath, output_dir, scan_pos_dict, dims):
