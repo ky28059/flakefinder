@@ -16,19 +16,17 @@ matplotlib.use('tkagg')
 k = 4
 
 
-def show_histogram(x, title: str, back: int, flake: int, lim: int = 256):
+def make_histogram(x, title: str, n: int, back: int, flake: int, lim: int = 256):
     print(f"Plotting {title}")
 
+    plt.subplot(3, 1, n)
     plt.plot(x)
     plt.axvline(back, dashes=(2, 1))
     plt.axvline(flake, dashes=(2, 1), color='b')
 
-    plt.ylabel('Frequency')
-    plt.xlabel('Intensity')
+    plt.ylabel('Occurrences')
     plt.xlim([0, lim])
     plt.title(title)
-
-    plt.show()
 
 
 def show_img(img, mask=None):
@@ -38,18 +36,20 @@ def show_img(img, mask=None):
 
     masked = " (masked)" if mask is not None else ""
 
-    show_histogram(reds, f"Stage {s} -- reds" + masked, back_rgb[0], flake_avg_rgb[0])
-    show_histogram(greens, f"Stage {s} -- greens" + masked, back_rgb[1], flake_avg_rgb[1])
-    show_histogram(blues, f"Stage {s} -- blues" + masked, back_rgb[2], flake_avg_rgb[2])
+    make_histogram(reds, f"Stage {s} -- reds" + masked, 1, back_rgb[0], flake_avg_rgb[0])
+    make_histogram(greens, f"Stage {s} -- greens" + masked, 2, back_rgb[1], flake_avg_rgb[1])
+    make_histogram(blues, f"Stage {s} -- blues" + masked, 3, back_rgb[2], flake_avg_rgb[2])
+    plt.show()
 
     img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     hues = cv2.calcHist([img], [0], mask, [180], [0, 180])
     saturations = cv2.calcHist([img], [1], mask, [256], [0, 256])
     values = cv2.calcHist([img], [2], mask, [256], [0, 256])
 
-    show_histogram(hues, f"Stage {s} -- hues" + masked, back_hsv[0], flake_avg_hsv[0], lim=180)
-    show_histogram(saturations, f"Stage {s} -- saturations" + masked, back_hsv[1], flake_avg_hsv[1])
-    show_histogram(values, f"Stage {s} -- values" + masked, back_hsv[2], flake_avg_hsv[2])
+    make_histogram(hues, f"Stage {s} -- hues" + masked, 1, back_hsv[0], flake_avg_hsv[0], lim=180)
+    make_histogram(saturations, f"Stage {s} -- saturations" + masked, 2, back_hsv[1], flake_avg_hsv[1])
+    make_histogram(values, f"Stage {s} -- values" + masked, 3, back_hsv[2], flake_avg_hsv[2])
+    plt.show()
 
 
 if __name__ == "__main__":
