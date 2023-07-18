@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from config import threadsave, boundflag, t_min_cluster_pixel_count, k
-from util.config import load_config
+from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, in_bounds
@@ -186,7 +186,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
 
 def main(args):
-    config = load_config(args.q)
+    config = load_queue(args.q)
 
     for input_dir, output_dir in config:
         os.makedirs(output_dir, exist_ok=True)

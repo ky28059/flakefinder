@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from config import open_morph_size, close_morph_size
 
 RGB = list[int]
 FlakeRGB = np.ndarray[int]
@@ -61,9 +62,7 @@ def apply_morph_open(masked):
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The image, with the morph applied.
     """
-    morph_size = 3
-
-    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
+    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * open_morph_size + 1, 2 * open_morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
 
 
@@ -75,9 +74,7 @@ def apply_morph_close(masked):
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The image, with the morph applied.
     """
-    morph_size = 6
-
-    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * morph_size + 1, 2 * morph_size + 1))
+    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * close_morph_size + 1, 2 * close_morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
 
 

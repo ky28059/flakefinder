@@ -11,7 +11,7 @@ import cv2
 import matplotlib
 import numpy as np
 
-from util.config import load_config
+from util.queue import load_queue
 from util.leica import dim_get
 
 matplotlib.use('tkagg')
@@ -97,7 +97,7 @@ def location(m, dimset):
 
 
 def main(args):
-    config = load_config(args.q or "Queue.txt")
+    config = load_queue(args.q or "Queue.txt")
     coordflag = args.map.lower() == "y"
 
     for input_dir, output_dir in config:

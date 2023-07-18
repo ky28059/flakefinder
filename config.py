@@ -4,3 +4,7 @@ boundflag = 1
 k = 4
 t_min_cluster_pixel_count = 1500  # flake too small
 # t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
+
+# Morphology parameters
+open_morph_size = 3
+close_morph_size = 6

@@ -6,10 +6,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 from util.logger import logger
 
 
-def load_config(input_file_path: str) -> list[list[str]]:
+def load_queue(input_file_path: str) -> list[list[str]]:
     """
-    Loads the configuration file at the specified file path.
-    :param input_file_path: The path to the config file.
+    Loads the queue file at the specified file path.
+    :param input_file_path: The path to the queue file.
     :return: The parsed list of input and output directories, given in pairs of `[input_dir, output_dir]`
     """
     with open(str(input_file_path)) as file1:

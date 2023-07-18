@@ -8,7 +8,7 @@ import re
 import argparse
 
 from util.logger import logger
-from util.config import load_config
+from util.queue import load_queue
 
 
 Dimensions = tuple[int, int]
@@ -84,5 +84,5 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    for input_dir, _ in load_config(args.q):
+    for input_dir, _ in load_queue(args.q):
         logger.info(f"Found dimensions for {input_dir}: {dim_get(input_dir)}")
