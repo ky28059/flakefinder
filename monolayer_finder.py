@@ -10,7 +10,7 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-from config import threadsave, boundflag, t_min_cluster_pixel_count, k
+from config import threadsave, boundflag, t_min_cluster_pixel_count, k, font
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
@@ -108,7 +108,6 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Label output images
         start = time.time()
-        font = cv2.FONT_HERSHEY_SIMPLEX
 
         img0 = cv2.putText(img, pos_str, (100, 100), font, 3, (0, 0, 0), 2, cv2.LINE_AA)
         img4 = img0.copy()

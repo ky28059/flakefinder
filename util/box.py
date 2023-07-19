@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import t_min_cluster_pixel_count
+from config import t_min_cluster_pixel_count, box_offset, box_thickness, font, box_color
 from util.processing import in_bounds
 
 
@@ -29,9 +29,10 @@ class Box:
 def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
     """
     Make boxes from contours, filtering out contours that are too small or completely contained by another image.
+    :param contours: The contours to draw boxes from.
+    :param hierarchy: The hierarchy of contours, as returned from `findContours()` with return mode `RETR_TREE`.
     :param img_h: The height of the image.
     :param img_w: The width of the image.
-    :param contours: The contours to draw boxes from.
     :return: The list of boxes.
     """
     boxes = []
@@ -48,7 +49,6 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
 
         # Subtract child contours to better represent area
         # TODO: recursion to children of children?
-        # TODO: does the "count all children on same level" work with multiple nested contours?
         while child != -1:
             child_cnt = contours[child]
 
@@ -57,7 +57,7 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
             cnt = np.concatenate([cnt, child_cnt])  # Add the child contour to `cnt` so it shows up in the final image
             inner_indices.append(child)
 
-            # Loop to next contour on same level as defined by hierarchy tree, if it exists
+            # Move to next contour on same level as defined by hierarchy tree, if it exists
             child, _, _, _ = hierarchy[0][child]
 
         if area < t_min_cluster_pixel_count:
@@ -118,25 +118,25 @@ def merge_boxes(dbscan_img, boxes: list[Box]) -> list[Box]:
     return merged
 
 
-offset = 5
-color = (255, 0, 0)
-thickness = 6
-font = cv2.FONT_HERSHEY_SIMPLEX
-
-
 def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
+    """
+    Labels a box on an image, drawing the bounding rectangle and labelling the micron height and width.
+    :param img: The image to label.
+    :param b: The box to label.
+    :return: The labelled image.
+    """
     pixcal = 1314.08 / img.shape[1]  # microns/pixel from Leica calibration
 
-    offset_x = int(b.x) - offset
-    offset_y = int(b.y) - offset
-    offset_w = int(b.width) + 2 * offset
-    offset_h = int(b.height) + 2 * offset
+    x = int(b.x) - box_offset
+    y = int(b.y) - box_offset
+    w = int(b.width) + 2 * box_offset
+    h = int(b.height) + 2 * box_offset
 
-    width_microns = round(offset_w * pixcal, 1)
-    height_microns = round(offset_h * pixcal, 1)  # microns
+    width_microns = round(w * pixcal, 1)
+    height_microns = round(h * pixcal, 1)  # microns
 
-    img = cv2.rectangle(img, (offset_x, offset_y), (offset_x + offset_w, offset_y + offset_h), color, thickness)
-    img = cv2.putText(img, str(height_microns), (offset_x + offset_w + 10, offset_y + int(offset_h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
-    img = cv2.putText(img, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+    img = cv2.rectangle(img, (x, y), (x + w, y + h), box_color, box_thickness)
+    img = cv2.putText(img, str(height_microns), (x + w + 10, y + int(h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+    img = cv2.putText(img, str(width_microns), (x, y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
     return img

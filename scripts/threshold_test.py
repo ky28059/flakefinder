@@ -8,7 +8,7 @@ import argparse
 import cv2
 import numpy as np
 
-from config import k
+from config import k, font
 from util.box import make_boxes, merge_boxes, draw_box
 from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, get_angles
 
@@ -113,7 +113,7 @@ if __name__ == "__main__":
                 for i in range(len(angles)):
                     cv2.putText(img, str(round(np.rad2deg(angles[i]), 2)) + ' deg.',
                                 (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
+                                font, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
         cv2.imshow(name, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         cv2.waitKey()

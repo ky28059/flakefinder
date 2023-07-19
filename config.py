@@ -16,3 +16,9 @@ close_morph_size = 3
 
 open_morph_shape = cv2.MORPH_RECT
 close_morph_shape = cv2.MORPH_CROSS
+
+# Labelling parameters
+box_offset = 5
+box_color = (255, 0, 0)  # tuple of (R, G, B)
+box_thickness = 6
+font = cv2.FONT_HERSHEY_SIMPLEX
