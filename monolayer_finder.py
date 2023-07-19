@@ -75,7 +75,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Find contours of masked and processed image
         start = time.time()
-        contours, _ = cv2.findContours(dst, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(dst, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         end = time.time()
 
         if len(contours) < 1:
@@ -85,7 +85,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # Make boxes and merge boxes that overlap
         start = time.time()
 
-        boxes = make_boxes(contours, img_h, img_w)
+        boxes = make_boxes(contours, hierarchy, img_h, img_w)
         boxes = merge_boxes(masked, boxes)
         boxes = merge_boxes(masked, boxes)
 

@@ -26,7 +26,7 @@ class Box:
         )
 
 
-def make_boxes(contours, img_h: int, img_w: int) -> list[Box]:
+def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
     """
     Make boxes from contours, filtering out contours that are too small or completely contained by another image.
     :param img_h: The height of the image.
@@ -35,8 +35,31 @@ def make_boxes(contours, img_h: int, img_w: int) -> list[Box]:
     :return: The list of boxes.
     """
     boxes = []
-    for cnt in contours:
+    inner_indices = []
+
+    for i in range(len(contours)):
+        if i in inner_indices:
+            continue
+
+        cnt = contours[i]
+        _, _, child, parent = hierarchy[0][i]
+
         area = cv2.contourArea(cnt)
+
+        # Subtract child contours to better represent area
+        # TODO: recursion to children of children?
+        # TODO: does the "count all children on same level" work with multiple nested contours?
+        while child != -1:
+            child_cnt = contours[child]
+
+            area -= cv2.contourArea(child_cnt)
+
+            cnt = np.concatenate([cnt, child_cnt])  # Add the child contour to `cnt` so it shows up in the final image
+            inner_indices.append(child)
+
+            # Loop to next contour on same level as defined by hierarchy tree, if it exists
+            child, _, _, _ = hierarchy[0][child]
+
         if area < t_min_cluster_pixel_count:
             continue
 
@@ -49,15 +72,15 @@ def make_boxes(contours, img_h: int, img_w: int) -> list[Box]:
     return boxes
 
 
-def merge_boxes(dbscan_img, boxes: list[Box], eliminated_indexes: list[int] = []) -> list[Box]:
+def merge_boxes(dbscan_img, boxes: list[Box]) -> list[Box]:
     """
     Merges a list of boxes by combining boxes with overlap.
     :param dbscan_img: TODO
     :param boxes: The list of boxes to merge.
-    :param eliminated_indexes: TODO
     :return: The merged list.
     """
     merged = []
+    eliminated_indexes = []
 
     for _i in range(len(boxes)):
         if _i in eliminated_indexes:

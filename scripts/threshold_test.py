@@ -75,7 +75,7 @@ if __name__ == "__main__":
         print(f"Finished open morph in {tok - tik} seconds")
 
         tik = time.time()
-        contours, _ = cv2.findContours(dst, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(dst, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         dst = cv2.drawContours(cv2.cvtColor(dst, cv2.COLOR_GRAY2BGR), contours, -1, (0, 0, 255), 2)
         tok = time.time()
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         print(f"Finished contour search in {tok - tik} seconds")
 
         tik = time.time()
-        boxes = make_boxes(contours, img.shape[0], img.shape[1])
+        boxes = make_boxes(contours, hierarchy, img.shape[0], img.shape[1])
         boxes = merge_boxes(masked, boxes)
         # boxes = merge_boxes(masked, boxes)
         tok = time.time()
