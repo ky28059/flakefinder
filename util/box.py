@@ -1,5 +1,10 @@
 from dataclasses import dataclass
+
+import cv2
 import numpy as np
+
+from config import t_min_cluster_pixel_count
+from util.processing import in_bounds
 
 
 @dataclass
@@ -19,6 +24,29 @@ class Box:
             np.logical_and(np.arange(bound_y, h) >= self.y - b, np.arange(bound_y, h) <= self.y + self.height + 2 * b),
             np.logical_and(np.arange(bound_x, w) >= self.x - b, np.arange(bound_x, w) <= self.x + self.width + 2 * b),
         )
+
+
+def make_boxes(contours, img_h: int, img_w: int) -> list[Box]:
+    """
+    Make boxes from contours, filtering out contours that are too small or completely contained by another image.
+    :param img_h: The height of the image.
+    :param img_w: The width of the image.
+    :param contours: The contours to draw boxes from.
+    :return: The list of boxes.
+    """
+    boxes = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < t_min_cluster_pixel_count:
+            continue
+
+        x, y, w, h = cv2.boundingRect(cnt)
+        if not in_bounds(x, y, x + w, y + h, img_w, img_h):
+            continue
+
+        boxes.append(Box(cnt, area, x, y, w, h))
+
+    return boxes
 
 
 def merge_boxes(dbscan_img, boxes: list[Box], eliminated_indexes: list[int] = []) -> list[Box]:
@@ -65,3 +93,27 @@ def merge_boxes(dbscan_img, boxes: list[Box], eliminated_indexes: list[int] = []
         merged.append(i)
 
     return merged
+
+
+offset = 5
+color = (255, 0, 0)
+thickness = 6
+font = cv2.FONT_HERSHEY_SIMPLEX
+
+
+def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
+    pixcal = 1314.08 / img.shape[1]  # microns/pixel from Leica calibration
+
+    offset_x = int(b.x) - offset
+    offset_y = int(b.y) - offset
+    offset_w = int(b.width) + 2 * offset
+    offset_h = int(b.height) + 2 * offset
+
+    width_microns = round(offset_w * pixcal, 1)
+    height_microns = round(offset_h * pixcal, 1)  # microns
+
+    img = cv2.rectangle(img, (offset_x, offset_y), (offset_x + offset_w, offset_y + offset_h), color, thickness)
+    img = cv2.putText(img, str(height_microns), (offset_x + offset_w + 10, offset_y + int(offset_h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+    img = cv2.putText(img, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+
+    return img

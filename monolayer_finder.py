@@ -14,8 +14,8 @@ from config import threadsave, boundflag, t_min_cluster_pixel_count, k
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, in_bounds
-from util.box import merge_boxes, Box
+from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
+from util.box import merge_boxes, make_boxes, draw_box
 from util.logger import logger
 
 
@@ -25,12 +25,9 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
     try:
         stage = get_stage(img_filepath)
 
-        img0 = cv2.imread(img_filepath)
-        img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
-        img_h, img_w, c = img.shape
-
-        pixcal = 1314.08 / img_w  # microns/pixel from Leica calibration
-        # pixcals = [pixcal, 876.13 / h]
+        img = cv2.imread(img_filepath)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_h, img_w, _ = img.shape
 
         # Lower and higher RGB limits for what code can see as background
         lowlim = np.array([87, 100, 99])
@@ -69,49 +66,33 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Mask image using thresholds and apply morph operations to reduce false positives
         start = time.time()
-        masked = mask_flake_color(img0, flake_avg_hsv)
-        dst = apply_morph_open(masked)
-        dst = apply_morph_close(dst)
+        masked = mask_flake_color(img, flake_avg_hsv)
+        dst = apply_morph_close(masked)
+        dst = apply_morph_open(dst)
         end = time.time()
 
         logger.debug(f"Stage{stage} thresholded and transformed in {end - start} seconds")
 
         # Find contours of masked and processed image
         start = time.time()
-        contours, _ = cv2.findContours(dst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(dst, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         end = time.time()
 
         if len(contours) < 1:
             return
         logger.debug(f"Stage{stage} had {len(contours)} contours in {end - start} seconds")
 
-        # Make boxes
+        # Make boxes and merge boxes that overlap
         start = time.time()
 
-        boxes = []
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area < t_min_cluster_pixel_count:
-                continue
-
-            x, y, w, h = cv2.boundingRect(cnt)
-            if not in_bounds(x, y, x + w, y + h, img_w, img_h):
-                continue
-
-            boxes.append(Box(cnt, area, x, y, w, h))
+        boxes = make_boxes(contours, img_h, img_w)
+        boxes = merge_boxes(masked, boxes)
+        boxes = merge_boxes(masked, boxes)
 
         end = time.time()
-        logger.debug(f"Stage{stage} generated boxes in {end - start} seconds")
+        logger.debug(f"Stage{stage} generated and merged boxes in {end - start} seconds")
 
-        # Merge boxes that overlap
-        start = time.time()
-        merged_boxes = merge_boxes(masked, boxes)
-        merged_boxes = merge_boxes(masked, merged_boxes)
-        end = time.time()
-
-        logger.debug(f"Stage{stage} merged boxes in {end - start} seconds")
-
-        if not merged_boxes:
+        if not boxes:
             return
 
         log_file = open(output_dir + "Color Log.txt", "a+")
@@ -127,39 +108,21 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Label output images
         start = time.time()
-        color = (0, 0, 255)
-        thickness = 6
         font = cv2.FONT_HERSHEY_SIMPLEX
 
-        img0 = cv2.putText(img0, pos_str, (100, 100), font, 3, (0, 0, 0), 2, cv2.LINE_AA)
+        img0 = cv2.putText(img, pos_str, (100, 100), font, 3, (0, 0, 0), 2, cv2.LINE_AA)
         img4 = img0.copy()
 
-        offset = 5
         max_area = 0
 
-        for b in merged_boxes:
-            offset_x = int(b.x) - offset
-            offset_y = int(b.y) - offset
-            offset_w = int(b.width) + 2 * offset
-            offset_h = int(b.height) + 2 * offset
-
-            width_microns = round(offset_w * pixcal, 1)
-            height_microns = round(offset_h * pixcal, 1)  # microns
-
+        for b in boxes:
+            img0 = draw_box(img0, b)
             max_area = max(int(b.area), max_area)
-            logger.debug((offset_x + offset_w + 10, offset_y + int(offset_h / 2)))
-
-            # creating the output images
-            img3 = cv2.rectangle(img0, (offset_x, offset_y), (offset_x + offset_w, offset_y + offset_h), color, thickness)
-            img3 = cv2.putText(img3, str(height_microns), (offset_x + offset_w + 10, offset_y + int(offset_h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
-            img3 = cv2.putText(img3, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
             if boundflag:
                 logger.debug('Drawing contour bounds...')
-                img4 = cv2.rectangle(img4, (offset_x, offset_y), (offset_x + offset_w, offset_y + offset_h), color, thickness)
-                img4 = cv2.putText(img4, str(height_microns), (offset_x + offset_w + 10, offset_y + int(offset_h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
-                img4 = cv2.putText(img4, str(width_microns), (offset_x, offset_y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
-                img4 = cv2.drawContours(img4, b.contours, -1, (0, 0, 255), 2)
+                img4 = draw_box(img4, b)
+                img4 = cv2.drawContours(img4, b.contours, -1, (255, 0, 0), 2)
 
             log_str = str(stage) + ',' + str(b.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
             log_file.write(log_str + '\n')
@@ -170,7 +133,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         logger.debug(f"Stage{stage} labelled images in {end - start} seconds")
 
         start = time.time()
-        cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img3)
+        cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img0)
 
         if boundflag:
             cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(max_area) + '_' + os.path.basename(img_filepath)), img4)

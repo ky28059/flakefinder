@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
-from config import open_morph_size, close_morph_size
+
+from config import open_morph_size, close_morph_size, open_morph_shape, close_morph_shape, flake_angle_tolerance_rads
 
 RGB = list[int]
 FlakeRGB = np.ndarray[int]
@@ -46,7 +47,7 @@ def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     :param img: The image to mask.
     :return: The masked black and white image.
     """
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
     lower = tuple(map(int, flake_avg_hsv - (6, 25, 25)))
     higher = tuple(map(int, flake_avg_hsv + (6, 25, 25)))
@@ -62,7 +63,7 @@ def apply_morph_open(masked):
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The image, with the morph applied.
     """
-    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * open_morph_size + 1, 2 * open_morph_size + 1))
+    element = cv2.getStructuringElement(open_morph_shape, (2 * open_morph_size + 1, 2 * open_morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
 
 
@@ -74,7 +75,7 @@ def apply_morph_close(masked):
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The image, with the morph applied.
     """
-    element = cv2.getStructuringElement(cv2.MORPH_CROSS, (2 * close_morph_size + 1, 2 * close_morph_size + 1))
+    element = cv2.getStructuringElement(close_morph_shape, (2 * close_morph_size + 1, 2 * close_morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
 
 
@@ -92,3 +93,29 @@ def in_bounds(x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> bool:
     """
     delt = 0.05
     return x2 > delt * w and y2 > delt * h and x1 < (1 - delt) * w and y1 < (1 - delt) * h
+
+
+def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> list[float]:
+    """
+    Gets all angles within a given range of a multiple of 30 degrees (excluding 180 and 360) given a list of lines.
+    :param lines: The lines to get angles from.
+    :return: The list of filtered angles (in radians).
+    """
+    ret = []
+
+    for i in range(0, len(lines)):
+        for j in range(i, len(lines)):
+            x11, y11, x21, y21 = lines[i][0]
+            x12, y12, x22, y22 = lines[j][0]
+
+            # Calculate angle between lines
+            t1 = np.arctan2(x21 - x11, y21 - y11)
+            t2 = np.arctan2(x22 - x12, y22 - y12)
+            t = (t2 - t1) % (2 * np.pi)
+
+            if t % (np.pi / 6) > flake_angle_tolerance_rads or t < flake_angle_tolerance_rads or t > 2 * np.pi - flake_angle_tolerance_rads:
+                continue
+
+            ret.append(t)
+
+    return ret
