@@ -51,7 +51,6 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
         # TODO: recursion to children of children?
         while child != -1:
             child_cnt = contours[child]
-
             area -= cv2.contourArea(child_cnt)
 
             cnt = np.concatenate([cnt, child_cnt])  # Add the child contour to `cnt` so it shows up in the final image

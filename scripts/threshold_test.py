@@ -8,9 +8,9 @@ import argparse
 import cv2
 import numpy as np
 
-from config import k, font
+from config import font
 from util.box import make_boxes, merge_boxes, draw_box
-from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, get_angles
+from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, get_angles
 
 
 if __name__ == "__main__":
@@ -33,12 +33,7 @@ if __name__ == "__main__":
         img = cv2.imread(f"C:\\04_03_23_EC_1\\Scan 002\\TileScan_001\\TileScan_001--Stage{s}.jpg")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
-        highlim = np.array([114, 118, 114])
-
-        imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
-        test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
-        pixout = imsmall * np.sign(test + abs(test))
+        pixout = get_bg_pixels(img)
 
         back_rgb = get_avg_rgb(pixout)
         flake_avg_rgb = bg_to_flake_color(back_rgb)
@@ -87,7 +82,7 @@ if __name__ == "__main__":
         tik = time.time()
         boxes = make_boxes(contours, hierarchy, img.shape[0], img.shape[1])
         boxes = merge_boxes(masked, boxes)
-        # boxes = merge_boxes(masked, boxes)
+        boxes = merge_boxes(masked, boxes)
         tok = time.time()
 
         print(f"Generated and merged boxes in {tok - tik} seconds")

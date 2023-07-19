@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from config import open_morph_size, close_morph_size, open_morph_shape, close_morph_shape, flake_angle_tolerance_rads
+from config import open_morph_size, close_morph_size, open_morph_shape, close_morph_shape, flake_angle_tolerance_rads, k
 
 RGB = list[int]
 FlakeRGB = np.ndarray[int]
@@ -20,6 +20,16 @@ def bg_to_flake_color(rgb: RGB) -> FlakeRGB:
     flake_blue = blue + 4
 
     return np.array([flake_red, flake_green, flake_blue])
+
+
+def get_bg_pixels(img: np.ndarray):
+    # Lower and higher RGB limits for what code can see as background
+    lowlim = np.array([87, 100, 99])
+    highlim = np.array([114, 118, 114])
+
+    imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
+    test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
+    return imsmall * np.sign(test + abs(test))
 
 
 def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:

@@ -14,7 +14,7 @@ from config import threadsave, boundflag, t_min_cluster_pixel_count, k, font
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
+from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
 from util.box import merge_boxes, make_boxes, draw_box
 from util.logger import logger
 
@@ -29,15 +29,9 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_h, img_w, _ = img.shape
 
-        # Lower and higher RGB limits for what code can see as background
-        lowlim = np.array([87, 100, 99])
-        highlim = np.array([114, 118, 114])
-
         # chooses pixels between provided limits, quickly filtering to potential background pixels
         start = time.time()
-        imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
-        test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
-        pixout = imsmall * np.sign(test + abs(test))
+        pixout = get_bg_pixels(img)
         end = time.time()
 
         logger.debug(f"Stage{stage} background detection in {end - start} seconds")
@@ -66,11 +60,12 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Mask image using thresholds and apply morph operations to reduce false positives
         start = time.time()
+
         masked = mask_flake_color(img, flake_avg_hsv)
         dst = apply_morph_close(masked)
         dst = apply_morph_open(dst)
-        end = time.time()
 
+        end = time.time()
         logger.debug(f"Stage{stage} thresholded and transformed in {end - start} seconds")
 
         # Find contours of masked and processed image
@@ -121,7 +116,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
             if boundflag:
                 logger.debug('Drawing contour bounds...')
                 img4 = draw_box(img4, b)
-                img4 = cv2.drawContours(img4, b.contours, -1, (255, 0, 0), 2)
+                img4 = cv2.drawContours(img4, b.contours, -1, (255, 255, 255), 1)
 
             log_str = str(stage) + ',' + str(b.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
             log_file.write(log_str + '\n')
@@ -132,10 +127,10 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         logger.debug(f"Stage{stage} labelled images in {end - start} seconds")
 
         start = time.time()
-        cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), img0)
+        cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), cv2.cvtColor(img0, cv2.COLOR_RGB2BGR))
 
         if boundflag:
-            cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(max_area) + '_' + os.path.basename(img_filepath)), img4)
+            cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(max_area) + '_' + os.path.basename(img_filepath)), cv2.cvtColor(img4, cv2.COLOR_RGB2BGR))
 
         end = time.time()
         logger.debug(f"Stage{stage} saved images in {end - start} seconds")
