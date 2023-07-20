@@ -90,8 +90,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         if not boxes:
             return logger.info(f"{img_filepath} - rejected for no boxes in {time.time() - tik} seconds")
 
-        log_file = open(output_dir + "Color Log.txt", "a+")
-        xd, yd, _, _ = location(stage, dims)
+        xd, yd = location(stage, dims)
 
         # Convert back from (x, y) scan number to mm coordinates
         try:
@@ -109,22 +108,22 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         max_area = 0
 
-        for box in boxes:
-            img0 = draw_box(img0, box)
-            max_area = max(int(box.area), max_area)
+        with open(output_dir + "Color Log.txt", "a+") as log_file:
+            for box in boxes:
+                img0 = draw_box(img0, box)
+                max_area = max(int(box.area), max_area)
 
-            if boundflag:
-                logger.debug('Drawing contour bounds...')
-                img4 = draw_box(img4, box)
-                img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
+                if boundflag:
+                    logger.debug('Drawing contour bounds...')
+                    img4 = draw_box(img4, box)
+                    img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
 
-                lines = get_lines(img4, box.contours)
-                draw_line_angles(img4, box, lines)
+                    lines = get_lines(img4, box.contours)
+                    draw_line_angles(img4, box, lines)
 
-            log_str = str(stage) + ',' + str(box.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
-            log_file.write(log_str + '\n')
+                log_str = str(stage) + ',' + str(box.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
+                log_file.write(log_str + '\n')
 
-        log_file.close()
         end = time.time()
 
         logger.debug(f"Stage{stage} labelled images in {end - start} seconds")
@@ -204,21 +203,22 @@ def main(args):
 
         logger.info(f"Created coordmap.jpg in {end - start} seconds")
 
-        # print(output_dir+"Color Log.txt")
-        N, A, Rw, Gw, Bw = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+        flake_data = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+        if flake_data:
+            N, A, Rw, Gw, Bw = flake_data
 
-        pairs = []
-        i = 0
-        while i < len(A):
-            pair = np.array([N[i], A[i]])
-            pairs.append(pair)
-            i = i + 1
-        # print(pairs)
-        pairsort = sorted(pairs, key=lambda x: x[1], reverse=True)
-        # print(pairs,pairsort)
-        for pair in pairsort:
-            writestr = str(int(pair[0])) + ', ' + str(pair[1]) + '\n'
-            fwrite.write(writestr)
+            pairs = []
+            i = 0
+            while i < len(A):
+                pair = np.array([N[i], A[i]])
+                pairs.append(pair)
+                i = i + 1
+
+            pairsort = sorted(pairs, key=lambda x: x[1], reverse=True)
+            for pair in pairsort:
+                writestr = str(int(pair[0])) + ', ' + str(pair[1]) + '\n'
+                fwrite.write(writestr)
+
         fwrite.close()
 
         logger.info(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file")
