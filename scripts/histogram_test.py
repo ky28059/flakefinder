@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from config import k
+from util.queue import load_queue
 from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color
 
 import matplotlib
@@ -75,9 +76,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    queue = load_queue('Queue.txt')
+    input_dir, _ = queue[0]
+
     for s in args.s:
-        img0 = cv2.imread(f"C:\\04_03_23_EC_1\\Scan 002\\TileScan_001\\TileScan_001--Stage{s}.jpg")
-        img = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
+        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{s}.jpg")
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # Calculate background and flake RGB using old method for labelling purposes
         lowlim = np.array([87, 100, 99])  # defines lower limit for what code can see as background
@@ -98,5 +102,5 @@ if __name__ == "__main__":
         # Calculate histograms from image
         show_img(img)
 
-        mask = mask_flake_color(img0, flake_avg_hsv)
+        mask = mask_flake_color(img, flake_avg_hsv)
         show_img(img, mask)

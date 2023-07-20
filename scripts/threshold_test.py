@@ -8,6 +8,7 @@ import argparse
 import cv2
 import numpy as np
 
+from util.queue import load_queue
 from util.box import make_boxes, merge_boxes, draw_box, draw_line_angles
 from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, get_lines
 
@@ -26,10 +27,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    queue = load_queue('Queue.txt')
+    input_dir, _ = queue[0]
+
     for s in args.s:
         # Run all the flake color logic first, since that isn't what's being benchmarked here
         # TODO: don't hard-code the input directory?
-        img = cv2.imread(f"C:\\04_03_23_EC_1\\Scan 002\\TileScan_001\\TileScan_001--Stage{s}.jpg")
+        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{s}.jpg")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         pixout = get_bg_pixels(img)
