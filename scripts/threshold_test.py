@@ -8,9 +8,8 @@ import argparse
 import cv2
 import numpy as np
 
-from config import font
-from util.box import make_boxes, merge_boxes, draw_box
-from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, get_angles
+from util.box import make_boxes, merge_boxes, draw_box, draw_line_angles
+from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close, get_lines
 
 
 if __name__ == "__main__":
@@ -91,24 +90,8 @@ if __name__ == "__main__":
             img = draw_box(img, box)
             img = cv2.drawContours(img, box.contours, -1, (255, 255, 255), 1)
 
-            mask = np.zeros(img.shape, np.uint8)
-            mask = cv2.drawContours(mask, box.contours, -1, (255, 255, 255), 1)
-
-            # TODO: make the mask b&w to begin with
-            lines = cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, 50, 10)
-            if lines is not None:
-                for line in lines:
-                    x1, y1, x2, y2 = line[0]
-                    cv2.line(img, (x1, y1), (x2, y2), (192, 8, 254), 2, cv2.LINE_AA)
-
-                if len(lines) < 2:
-                    continue
-
-                angles = get_angles(lines)
-                for i in range(len(angles)):
-                    cv2.putText(img, str(round(np.rad2deg(angles[i]), 2)) + ' deg.',
-                                (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
-                                font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+            lines = get_lines(img, box.contours)
+            draw_line_angles(img, box, lines)
 
         cv2.imshow(name, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         cv2.waitKey()

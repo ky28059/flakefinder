@@ -54,7 +54,7 @@ def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     """
     Mask an image to black and white pixels based on whether it is within threshold of the given flake color.
     :param flake_avg_hsv: The average flake color (in HSV).
-    :param img: The image to mask.
+    :param img: The RGB image to mask.
     :return: The masked black and white image.
     """
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
@@ -65,25 +65,25 @@ def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     return cv2.inRange(hsv, lower, higher)
 
 
-def apply_morph_open(masked):
+def apply_morph_open(masked: np.ndarray) -> np.ndarray:
     """
     Applies the "opening" morphological operation to a masked image to clear away small false-positive "islands".
     https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
 
     :param masked: The masked black and white image from `mask_flake_color`.
-    :return: The image, with the morph applied.
+    :return: The black and white image, with the morph applied.
     """
     element = cv2.getStructuringElement(open_morph_shape, (2 * open_morph_size + 1, 2 * open_morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
 
 
-def apply_morph_close(masked):
+def apply_morph_close(masked: np.ndarray) -> np.ndarray:
     """
-    Applies the "closing" morphological operation to a masked image to fill eroded flake chunks from opening.
+    Applies the "closing" morphological operation to a masked image to fill small "holes" in detected flakes.
     https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
 
     :param masked: The masked black and white image from `mask_flake_color`.
-    :return: The image, with the morph applied.
+    :return: The black and white image, with the morph applied.
     """
     element = cv2.getStructuringElement(close_morph_shape, (2 * close_morph_size + 1, 2 * close_morph_size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
@@ -105,10 +105,19 @@ def in_bounds(x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> bool:
     return x2 > delt * w and y2 > delt * h and x1 < (1 - delt) * w and y1 < (1 - delt) * h
 
 
+def get_lines(img: np.ndarray, contour) -> np.ndarray[tuple[tuple[float, float, float, float]]] | None:
+    mask = np.zeros(img.shape, np.uint8)
+    mask = cv2.drawContours(mask, contour, -1, (255, 255, 255), 1)
+
+    # TODO: make the mask b&w to begin with
+    # https://docs.opencv.org/3.4/d9/db0/tutorial_hough_lines.html
+    return cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, 50, 10)
+
+
 def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> list[float]:
     """
     Gets all angles within a given range of a multiple of 30 degrees (excluding 180 and 360) given a list of lines.
-    :param lines: The lines to get angles from.
+    :param lines: The lines to get angles from (from `HoughLinesP`, as tuples of [x1, y1, x2, y2]).
     :return: The list of filtered angles (in radians).
     """
     ret = []

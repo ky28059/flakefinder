@@ -8,7 +8,7 @@ boundflag = 1
 k = 4
 t_min_cluster_pixel_count = 1500
 # t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
-flake_angle_tolerance_rads = np.deg2rad(10)
+flake_angle_tolerance_rads = np.deg2rad(2)
 
 # Morphology parameters
 open_morph_size = 2

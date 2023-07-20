@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from config import t_min_cluster_pixel_count, box_offset, box_thickness, font, box_color
-from util.processing import in_bounds
+from util.processing import in_bounds, get_angles
 
 
 @dataclass
@@ -48,6 +48,7 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
         area = cv2.contourArea(cnt)
 
         # Subtract child contours to better represent area
+        # https://docs.opencv.org/4.x/d9/d8b/tutorial_py_contours_hierarchy.html
         # TODO: recursion to children of children?
         while child != -1:
             child_cnt = contours[child]
@@ -139,3 +140,19 @@ def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
     img = cv2.putText(img, str(width_microns), (x, y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
     return img
+
+
+def draw_line_angles(img: np.ndarray, box: Box, lines) -> None:
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(img, (x1, y1), (x2, y2), (192, 8, 254), 2, cv2.LINE_AA)
+
+        if len(lines) < 2:
+            return
+
+        angles = get_angles(lines)
+        for i in range(len(angles)):
+            cv2.putText(img, str(round(np.rad2deg(angles[i]), 2)) + ' deg.',
+                        (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
+                        font, 1, (0, 0, 0), 2, cv2.LINE_AA)

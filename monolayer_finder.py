@@ -14,8 +14,9 @@ from config import threadsave, boundflag, t_min_cluster_pixel_count, k, font
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, apply_morph_close
-from util.box import merge_boxes, make_boxes, draw_box
+from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, \
+    apply_morph_close, get_lines
+from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles
 from util.logger import logger
 
 
@@ -109,16 +110,19 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         max_area = 0
 
-        for b in boxes:
-            img0 = draw_box(img0, b)
-            max_area = max(int(b.area), max_area)
+        for box in boxes:
+            img0 = draw_box(img0, box)
+            max_area = max(int(box.area), max_area)
 
             if boundflag:
                 logger.debug('Drawing contour bounds...')
-                img4 = draw_box(img4, b)
-                img4 = cv2.drawContours(img4, b.contours, -1, (255, 255, 255), 1)
+                img4 = draw_box(img4, box)
+                img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
 
-            log_str = str(stage) + ',' + str(b.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
+                lines = get_lines(img4, box.contours)
+                draw_line_angles(img4, box, lines)
+
+            log_str = str(stage) + ',' + str(box.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
             log_file.write(log_str + '\n')
 
         log_file.close()
