@@ -38,7 +38,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         logger.debug(f"Stage{stage} background detection in {end - start} seconds")
 
         if len(pixout) == 0:  # making sure background is identified
-            return
+            return logger.info(f"{img_filepath} - rejected for unidentified background in {time.time() - tik} seconds")
 
         # Get monolayer color from background color
         back_rgb = get_avg_rgb(pixout)
@@ -53,8 +53,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
 
         if np.sum(pixdark) / len(img_pixels) > 0.1:
-            logger.debug(f"Stage{stage} was on an edge!")
-            return
+            return logger.info(f"{img_filepath} - rejected for dark pixels in {time.time() - tik} seconds")
 
         end = time.time()
         logger.debug(f"Stage{stage} tested for dark pixels in {end - start} seconds")
@@ -75,7 +74,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         end = time.time()
 
         if len(contours) < 1:
-            return
+            return logger.info(f"{img_filepath} - rejected for no contours in {time.time() - tik} seconds")
         logger.debug(f"Stage{stage} had {len(contours)} contours in {end - start} seconds")
 
         # Make boxes and merge boxes that overlap
@@ -89,7 +88,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         logger.debug(f"Stage{stage} generated and merged boxes in {end - start} seconds")
 
         if not boxes:
-            return
+            return logger.info(f"{img_filepath} - rejected for no boxes in {time.time() - tik} seconds")
 
         log_file = open(output_dir + "Color Log.txt", "a+")
         xd, yd, _, _ = location(stage, dims)

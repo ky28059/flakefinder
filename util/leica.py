@@ -48,18 +48,18 @@ def dim_get(input_dir: str) -> Dimensions:
     return xmax + 1, ymax + 1
 
 
-def location(m: int, dims: Dimensions) -> tuple[float, int, int, int]:  # TODO: supposed to be a float?
+def location(m: int, dims: Dimensions) -> tuple[float, int]:  # TODO: supposed to be a float?
     """
     Gets the (x, y) location of the mth scan image given the width and height of the scan.
     :param m: The index to locate.
     :param dims: The dimensions of the scan, as a tuple of (width, height).
-    :return: The location, as a tuple of (x, y, height - 1, width - 1)
+    :return: The location, as a tuple of (x, y).
     """
     width, height = dims
     row = m % height
     column = (m - row) / height
 
-    return column, row, height - 1, width - 1
+    return column, row
 
 
 def get_stage(path: str) -> int:
