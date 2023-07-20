@@ -204,7 +204,7 @@ def main(args):
         logger.info(f"Created coordmap.jpg in {end - start} seconds")
 
         flake_data = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
-        if flake_data:
+        if flake_data.size > 0:
             N, A, Rw, Gw, Bw = flake_data
 
             pairs = []
