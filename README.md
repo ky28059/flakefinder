@@ -3,7 +3,9 @@
 This is not ready for general use
 
 ### Usage
-`python monolayer_finder.py --q <PATH>`
+```bash
+python monolayer_finder.py --q <PATH>
+```
 
 The input file specified by <PATH> should be a text document containing ONLY Input and Output paths for all imagesets you wish to queue, formatted as below:
 
@@ -31,7 +33,7 @@ Performance ~1-10s per 20 megapixel file at scale=1, k=4 on the Leica computer, 
 
 #### Morphology
 - `OPEN_MORPH_SIZE` — The size of the `MORPH_OPEN` operation applied to the image mask to reduce noise. Larger = more non-flake
-particles removed from the mask, but also can lead to more erosion of actual flakes.
+particles removed from the mask, but can possibly lead to more erosion of actual flakes.
 - `CLOSE_MORPH_SIZE` — The size of the `MORPH_CLOSE` operation applied to the image mask to fill in small gaps in flakes before
 `MORPH_OPEN`. Larger = more gaps filled, but can possibly lead to filling gaps that are actually not part of the flake.
 - `OPEN_MORPH_SHAPE` — The structuring element shape of the `MORPH_OPEN` operation.

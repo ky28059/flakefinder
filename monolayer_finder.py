@@ -15,7 +15,7 @@ from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, \
-    apply_morph_close, get_lines
+                            apply_morph_close, get_lines
 from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles
 from util.logger import logger
 
@@ -108,7 +108,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         max_area = 0
 
-        with open(output_dir + "Color Log.txt", "a+") as log_file:
+        with open(output_dir + "Color Log.csv", "a+") as flake_log, \
+             open(output_dir + "Edge Log.csv", "a+") as edge_log:
             for box in boxes:
                 img0 = draw_box(img0, box)
                 max_area = max(int(box.area), max_area)
@@ -119,10 +120,12 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
                     img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
 
                     lines = get_lines(img4, box.contours)
-                    draw_line_angles(img4, box, lines)
+                    angles = draw_line_angles(img4, box, lines)
 
-                log_str = str(stage) + ',' + str(box.area) + ',' + str(back_rgb[0]) + ',' + str(back_rgb[1]) + ',' + str(back_rgb[2])
-                log_file.write(log_str + '\n')
+                    if lines is not None:
+                        edge_log.write(f'{str(stage)},{" ".join(map(str, angles)) if len(angles) > 0 else "-"}')
+
+                flake_log.write(f'{str(stage)},{str(box.area)},{str(back_rgb[0])},{str(back_rgb[1])},{str(back_rgb[2])}\n')
 
         end = time.time()
 
@@ -154,8 +157,11 @@ def main(args):
         input_files = [f for f in glob.glob(os.path.join(input_dir, "*")) if "Stage" in f]
         input_files.sort(key=len)
 
-        with open(output_dir + "Color Log.txt", "w+") as log_file:
-            log_file.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
+        # Write log file headers
+        with open(output_dir + "Color Log.csv", "w+") as flake_log, \
+             open(output_dir + "Edge Log.csv", "w+") as edge_log:
+            flake_log.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
+            edge_log.write('N,T\n')
 
         tik = time.time()
         scanposdict = pos_get(input_dir)
@@ -185,16 +191,10 @@ def main(args):
             f.write('t_min_cluster_pixel_count=' + str(FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2)) + '\n')
             f.write('k=' + str(k) + "\n\n")
 
-        flist = open(output_dir + "Imlist.txt", "w+")
-        flist.write("List of Stage Numbers for copying to Analysis Sheet" + "\n")
-        flist.close()
-        flist = open(output_dir + "Imlist.txt", "a+")
-        flist.close()  # TODO: what is the purpose of this?
-
-        fwrite = open(output_dir + "By Area.txt", "w+")
-        fwrite.write("Num, A" + "\n")
-        fwrite.close()
-        fwrite = open(output_dir + "By Area.txt", "a+")
+        area_log = open(output_dir + "By Area.csv", "w+")
+        area_log.write("Num,A\n")
+        area_log.close()
+        area_log = open(output_dir + "By Area.csv", "a+")
 
         start = time.time()
         stages = np.sort(np.array([get_stage(file) for file in output_files]))
@@ -203,7 +203,7 @@ def main(args):
 
         logger.info(f"Created coordmap.jpg in {end - start} seconds")
 
-        flake_data = np.loadtxt(output_dir + "Color Log.txt", skiprows=1, delimiter=',', unpack=True)
+        flake_data = np.loadtxt(output_dir + "Color Log.csv", skiprows=1, delimiter=',', unpack=True)
         if flake_data.size > 0:
             N, A, Rw, Gw, Bw = flake_data
 
@@ -217,9 +217,9 @@ def main(args):
             pairsort = sorted(pairs, key=lambda x: x[1], reverse=True)
             for pair in pairsort:
                 writestr = str(int(pair[0])) + ', ' + str(pair[1]) + '\n'
-                fwrite.write(writestr)
+                area_log.write(writestr)
 
-        fwrite.close()
+        area_log.close()
 
         logger.info(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file")
 

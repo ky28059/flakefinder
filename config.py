@@ -25,7 +25,7 @@ CLOSE_MORPH_SHAPE = cv2.MORPH_CROSS
 
 # Labelling parameters
 BOX_OFFSET = 5
-BOX_RGB = (255, 0, 0)  # tuple of (R, G, B)
+BOX_RGB = (255, 0, 0)
 BOX_THICKNESS = 6
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX

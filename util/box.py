@@ -142,17 +142,21 @@ def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
     return img
 
 
-def draw_line_angles(img: np.ndarray, box: Box, lines) -> None:
+def draw_line_angles(img: np.ndarray, box: Box, lines) -> list[float]:
+    angles = []
+
     if lines is not None:
         for line in lines:
             x1, y1, x2, y2 = line[0]
             cv2.line(img, (x1, y1), (x2, y2), (192, 8, 254), 2, cv2.LINE_AA)
 
         if len(lines) < 2:
-            return
+            return angles
 
         angles = get_angles(lines)
         for i in range(len(angles)):
             cv2.putText(img, str(round(np.rad2deg(angles[i]), 2)) + ' deg.',
                         (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
                         FONT, 1, (0, 0, 0), 2, cv2.LINE_AA)
+
+    return angles
