@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 matplotlib.use('tkagg')
 
-use_cv2_hist = False
+use_cv2_hist = True
 
 
 def make_histogram(img: np.ndarray, mask, title: str, n: int, back: list[int] | int, flake: np.ndarray[int] | int, lim: int = 256):
