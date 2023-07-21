@@ -19,36 +19,29 @@ The OutputDir will be created if it does not exist, and a Summary.txt file of pe
 Performance ~1-10s per 20 megapixel file at scale=1, k=4 on the Leica computer, depending on how many filter steps the image passes
 
 ### Parameters
-- `threadsave` : how many logical processors the program does NOT use on your CPU. Can reduce to improve computer usability while program is running at cost of runtime
-- `boundflag` : 0/1 to turn off/on a function that calculates flake area and border pixels. Processing intensive but gives useful feedback to both user and developer
-- `k`: scale factor for the image before performing DB scan. Currently set to 4, imscale = (256\*k,171\*k) - for full 20MP resolution, k=21
-<!--
-Beyond this you'll need to mess with the epsilon parameter of DBScan.
-* `t_rgb_dist`: Initial pixel thresholding. Pixels have to be within euclidian distance (radius) of RGB value to be included in DB scan
-* `t_hue_dist`: Max distance from target hue in HSV space for a pixel's hue to be considered "good" for DB scan - currently unused
-* `t_color_match_count`: Minimum number of "good" pixels an image must have before we'll bother with DBscan. Otherwise,
-the image is discarded. This makes for fast filtering of images with no relevant content.
--->
-- `t_min_cluster_pixel_count`: minimum area (in pixels) a detected contour must have to be valid.
-- `flake_angle_tolerance_rads`: the tolerance (in radians) an angle between two detected lines can be from a multiple of 30 degrees to still be labelled as interesting.
-<!--
-* `t_max_cluster_pixel_count`: maximum points a DBScan cluster can have to be valid
-* `scale`: The output resolution of images with identified flakes, relative to the input resolution. Does not affect DBscan. Set to 1 for identical input/output
--->
+- `threadsave` — How many logical processors the program does NOT use on your CPU. Can reduce to improve computer usability while program is running at cost of runtime
+- `boundflag` — 0/1 to turn off/on a function that calculates flake area and border pixels. Processing intensive but gives useful feedback to both user and developer
+- `k` — Scale factor for the image before finding background RGB. Currently set to 4, imscale = (256\*k,171\*k) - for full 20MP resolution, k=21
+
+#### Detection
+- `UM_TO_PX` — The conversion factor between microns (μm) and pixels in the scan image.
+- `FLAKE_MIN_AREA_UM2` — The minimum area (in μm<sup>2</sup>) a detected contour must have to be considered a valid flake.
+- `FLAKE_MIN_EDGE_LENGTH_UM` —  The minimum length (in μm) a detected flake edge must have to be counted.
+- `FLAKE_ANGLE_TOLERANCE_RADS` — The tolerance (in radians) an angle between two detected lines can be from a multiple of 30 degrees to still be labelled as interesting.
 
 #### Morphology
-- `open_size` -- The size of the `MORPH_OPEN` operation applied to the image mask to reduce noise. Larger = more non-flake
+- `OPEN_MORPH_SIZE` — The size of the `MORPH_OPEN` operation applied to the image mask to reduce noise. Larger = more non-flake
 particles removed from the mask, but also can lead to more erosion of actual flakes.
-- `close_size` -- The size of the `MORPH_CLOSE` operation applied to the image mask to fill in small gaps in flakes before
+- `CLOSE_MORPH_SIZE` — The size of the `MORPH_CLOSE` operation applied to the image mask to fill in small gaps in flakes before
 `MORPH_OPEN`. Larger = more gaps filled, but can possibly lead to filling gaps that are actually not part of the flake.
-- `open_shape` -- The structuring element shape of the `MORPH_OPEN` operation.
-- `close_shape` -- The structuring element shape of the `MORPH_CLOSE` operation.
+- `OPEN_MORPH_SHAPE` — The structuring element shape of the `MORPH_OPEN` operation.
+- `CLOSE_MORPH_SHAPE` — The structuring element shape of the `MORPH_CLOSE` operation.
 
 #### Labelling
-- `box_offset` -- The offset, in pixels, each side of the labelled bounding box should be from the actual bounding box of the flake.
-- `box_color` -- The color of the labelled bounding box.
-- `box_thickness` -- The thickness, in pixels, of each side of the labelled bounding box.
-- `font` -- The font to use for text labels.
+- `BOX_OFFSET` — The offset, in pixels, each side of the labelled bounding box should be from the actual bounding box of the flake.
+- `BOX_RGB` — The RGB tuple of the labelled bounding box.
+- `BOX_THICKNESS` — The thickness, in pixels, of each side of the labelled bounding box.
+- `FONT` — The font to use for text labels.
 
 ### Scripts
 | Name                  | Description                                                                            | Arguments                                                                                                |
@@ -65,7 +58,3 @@ particles removed from the mask, but also can lead to more erosion of actual fla
 | `equalize_test.py`  | Benchmarks and shows each step of the flake finding process using the new histogram equalization method on a given list of stage images.                                                         | *(See above)*                                                                                                                                                                                                                                                                            |
 | `histogram_test.py` | Displays color histograms of the given stage image(s), showing RGB, HSV, and grayscale channels before and after masking for flake color and where the expected background and flake colors lie. | *(See above)*                                                                                                                                                                                                                                                                            |
 | `edge_test.py`      | Displays the results of running Sobel and Laplace edge detection algorithms on given stage image(s).                                                                                             | *(See above)*                                                                                                                                                                                                                                                                            |
-
-### Suggested Tuning:
-- Set k to 4 for higher quality results (with somewhat slower processing time)
-- tweak t_[min/max]_cluster_pixel_count to exclude clusters obviously too small/large to be flakes

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import t_min_cluster_pixel_count, box_offset, box_thickness, font, box_color
+from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB
 from util.processing import in_bounds, get_angles
 
 
@@ -60,7 +60,7 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
             # Move to next contour on same level as defined by hierarchy tree, if it exists
             child, _, _, _ = hierarchy[0][child]
 
-        if area < t_min_cluster_pixel_count:
+        if area < FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2):
             continue
 
         x, y, w, h = cv2.boundingRect(cnt)
@@ -127,17 +127,17 @@ def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
     """
     pixcal = 1314.08 / img.shape[1]  # microns/pixel from Leica calibration
 
-    x = int(b.x) - box_offset
-    y = int(b.y) - box_offset
-    w = int(b.width) + 2 * box_offset
-    h = int(b.height) + 2 * box_offset
+    x = int(b.x) - BOX_OFFSET
+    y = int(b.y) - BOX_OFFSET
+    w = int(b.width) + 2 * BOX_OFFSET
+    h = int(b.height) + 2 * BOX_OFFSET
 
     width_microns = round(w * pixcal, 1)
     height_microns = round(h * pixcal, 1)  # microns
 
-    img = cv2.rectangle(img, (x, y), (x + w, y + h), box_color, box_thickness)
-    img = cv2.putText(img, str(height_microns), (x + w + 10, y + int(h / 2)), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
-    img = cv2.putText(img, str(width_microns), (x, y - 10), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+    img = cv2.rectangle(img, (x, y), (x + w, y + h), BOX_RGB, BOX_THICKNESS)
+    img = cv2.putText(img, str(height_microns), (x + w + 10, y + int(h / 2)), FONT, 1, (0, 0, 0), 2, cv2.LINE_AA)
+    img = cv2.putText(img, str(width_microns), (x, y - 10), FONT, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
     return img
 
@@ -155,4 +155,4 @@ def draw_line_angles(img: np.ndarray, box: Box, lines) -> None:
         for i in range(len(angles)):
             cv2.putText(img, str(round(np.rad2deg(angles[i]), 2)) + ' deg.',
                         (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
-                        font, 1, (0, 0, 0), 2, cv2.LINE_AA)
+                        FONT, 1, (0, 0, 0), 2, cv2.LINE_AA)

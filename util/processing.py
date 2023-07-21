@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 
-from config import open_morph_size, close_morph_size, open_morph_shape, close_morph_shape, flake_angle_tolerance_rads, k
+from config import OPEN_MORPH_SIZE, CLOSE_MORPH_SIZE, OPEN_MORPH_SHAPE, CLOSE_MORPH_SHAPE, UM_TO_PX, \
+                   FLAKE_MIN_EDGE_LENGTH_UM, FLAKE_ANGLE_TOLERANCE_RADS, k
 
 RGB = list[int]
 FlakeRGB = np.ndarray[int]
@@ -73,7 +74,7 @@ def apply_morph_open(masked: np.ndarray) -> np.ndarray:
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The black and white image, with the morph applied.
     """
-    element = cv2.getStructuringElement(open_morph_shape, (2 * open_morph_size + 1, 2 * open_morph_size + 1))
+    element = cv2.getStructuringElement(OPEN_MORPH_SHAPE, (2 * OPEN_MORPH_SIZE + 1, 2 * OPEN_MORPH_SIZE + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
 
 
@@ -85,7 +86,7 @@ def apply_morph_close(masked: np.ndarray) -> np.ndarray:
     :param masked: The masked black and white image from `mask_flake_color`.
     :return: The black and white image, with the morph applied.
     """
-    element = cv2.getStructuringElement(close_morph_shape, (2 * close_morph_size + 1, 2 * close_morph_size + 1))
+    element = cv2.getStructuringElement(CLOSE_MORPH_SHAPE, (2 * CLOSE_MORPH_SIZE + 1, 2 * CLOSE_MORPH_SIZE + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
 
 
@@ -111,7 +112,7 @@ def get_lines(img: np.ndarray, contour) -> np.ndarray[tuple[tuple[float, float, 
 
     # TODO: make the mask b&w to begin with
     # https://docs.opencv.org/3.4/d9/db0/tutorial_hough_lines.html
-    return cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, 50, 10)
+    return cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, 10)
 
 
 def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> list[float]:
@@ -132,7 +133,7 @@ def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> l
             t2 = np.arctan2(x22 - x12, y22 - y12)
             t = (t2 - t1) % (2 * np.pi)
 
-            if t % (np.pi / 6) > flake_angle_tolerance_rads or t < flake_angle_tolerance_rads or t > 2 * np.pi - flake_angle_tolerance_rads:
+            if t % (np.pi / 6) > FLAKE_ANGLE_TOLERANCE_RADS or t < FLAKE_ANGLE_TOLERANCE_RADS or t > 2 * np.pi - FLAKE_ANGLE_TOLERANCE_RADS:
                 continue
 
             ret.append(t)

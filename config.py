@@ -6,19 +6,26 @@ threadsave = 1  # number of threads NOT allocated when running
 boundflag = 1
 # t_color_match_count = 0.000225  # fraction of image that must look like monolayers
 k = 4
-t_min_cluster_pixel_count = 1500
-# t_max_cluster_pixel_count = 20000 * (k / 4) ** 2  # flake too large
-flake_angle_tolerance_rads = np.deg2rad(2)
+
+# Detection parameters
+UM_TO_PX = 4
+
+FLAKE_MIN_AREA_UM2 = 100
+# FLAKE_MAX_AREA_UM2 = 4000
+
+FLAKE_MIN_EDGE_LENGTH_UM = 10
+FLAKE_ANGLE_TOLERANCE_RADS = np.deg2rad(2)
 
 # Morphology parameters
-open_morph_size = 2
-close_morph_size = 3
+OPEN_MORPH_SIZE = 2
+CLOSE_MORPH_SIZE = 3
 
-open_morph_shape = cv2.MORPH_RECT
-close_morph_shape = cv2.MORPH_CROSS
+OPEN_MORPH_SHAPE = cv2.MORPH_RECT
+CLOSE_MORPH_SHAPE = cv2.MORPH_CROSS
 
 # Labelling parameters
-box_offset = 5
-box_color = (255, 0, 0)  # tuple of (R, G, B)
-box_thickness = 6
-font = cv2.FONT_HERSHEY_SIMPLEX
+BOX_OFFSET = 5
+BOX_RGB = (255, 0, 0)  # tuple of (R, G, B)
+BOX_THICKNESS = 6
+
+FONT = cv2.FONT_HERSHEY_SIMPLEX

@@ -10,7 +10,7 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-from config import threadsave, boundflag, t_min_cluster_pixel_count, k, font
+from config import threadsave, boundflag, UM_TO_PX, FLAKE_MIN_AREA_UM2, k, FONT
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
@@ -103,7 +103,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # Label output images
         start = time.time()
 
-        img0 = cv2.putText(img, pos_str, (100, 100), font, 3, (0, 0, 0), 2, cv2.LINE_AA)
+        img0 = cv2.putText(img, pos_str, (100, 100), FONT, 3, (0, 0, 0), 2, cv2.LINE_AA)
         img4 = img0.copy()
 
         max_area = 0
@@ -182,7 +182,7 @@ def main(args):
             f.write(f"Total for {len(files)} files: {tok - tik} = avg of {(tok - tik) / len(files)} per file on {n_proc} logical processors\n")
             f.write(str(filecount) + ' identified flakes\n')
 
-            f.write('t_min_cluster_pixel_count=' + str(t_min_cluster_pixel_count) + '\n')
+            f.write('t_min_cluster_pixel_count=' + str(FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2)) + '\n')
             f.write('k=' + str(k) + "\n\n")
 
         flist = open(output_dir + "Imlist.txt", "w+")
