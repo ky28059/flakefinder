@@ -66,27 +66,41 @@ def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     return cv2.inRange(hsv, lower, higher)
 
 
-def apply_morph_open(masked: np.ndarray) -> np.ndarray:
+def mask_equalized(equalized: np.ndarray) -> np.ndarray:
+    _, equalize_mask = cv2.threshold(equalized, 5, 255, cv2.THRESH_BINARY_INV)
+    return equalize_mask
+
+
+def mask_dark_pixels(img_gray: np.ndarray) -> np.ndarray:
+    _, dark_mask = cv2.threshold(img_gray, 100, 255, cv2.THRESH_BINARY)
+    return dark_mask
+
+
+def apply_morph_open(masked: np.ndarray, size: int = OPEN_MORPH_SIZE, shape=OPEN_MORPH_SHAPE) -> np.ndarray:
     """
     Applies the "opening" morphological operation to a masked image to clear away small false-positive "islands".
     https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
 
     :param masked: The masked black and white image from `mask_flake_color`.
+    :param size: The size of the transform.
+    :param shape: The structuring element shape of the transform.
     :return: The black and white image, with the morph applied.
     """
-    element = cv2.getStructuringElement(OPEN_MORPH_SHAPE, (2 * OPEN_MORPH_SIZE + 1, 2 * OPEN_MORPH_SIZE + 1))
+    element = cv2.getStructuringElement(shape, (2 * size + 1, 2 * size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
 
 
-def apply_morph_close(masked: np.ndarray) -> np.ndarray:
+def apply_morph_close(masked: np.ndarray, size: int = CLOSE_MORPH_SIZE, shape=CLOSE_MORPH_SHAPE) -> np.ndarray:
     """
     Applies the "closing" morphological operation to a masked image to fill small "holes" in detected flakes.
     https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
 
     :param masked: The masked black and white image from `mask_flake_color`.
+    :param size: The size of the transform.
+    :param shape: The structuring element shape of the transform.
     :return: The black and white image, with the morph applied.
     """
-    element = cv2.getStructuringElement(CLOSE_MORPH_SHAPE, (2 * CLOSE_MORPH_SIZE + 1, 2 * CLOSE_MORPH_SIZE + 1))
+    element = cv2.getStructuringElement(shape, (2 * size + 1, 2 * size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
 
 
@@ -112,7 +126,7 @@ def get_lines(img: np.ndarray, contour) -> np.ndarray[tuple[tuple[float, float, 
 
     # TODO: make the mask b&w to begin with
     # https://docs.opencv.org/3.4/d9/db0/tutorial_hough_lines.html
-    return cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, 10)
+    return cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, 5)
 
 
 def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> list[float]:

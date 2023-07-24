@@ -8,8 +8,9 @@ import argparse
 import cv2
 import numpy as np
 
+from config import EQUALIZE_OPEN_MORPH_SIZE, EQUALIZE_CLOSE_MORPH_SIZE, EQUALIZE_OPEN_MORPH_SHAPE, EQUALIZE_CLOSE_MORPH_SHAPE
 from util.queue import load_queue
-from util.processing import apply_morph_open, apply_morph_close, get_lines
+from util.processing import mask_equalized, mask_dark_pixels, apply_morph_open, apply_morph_close, get_lines
 from util.box import make_boxes, merge_boxes, draw_box, draw_line_angles
 
 
@@ -44,7 +45,7 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         # Filter out dark, non-flake chunks that will stay dark after equalization
-        _, dark_mask = cv2.threshold(img_gray, 100, 255, cv2.THRESH_BINARY)
+        dark_mask = mask_dark_pixels(img_gray)
         cv2.imshow(name, dark_mask)
         cv2.waitKey()
 
@@ -57,7 +58,7 @@ if __name__ == "__main__":
         cv2.imshow(name, equalized)
         cv2.waitKey()
 
-        _, equalize_mask = cv2.threshold(equalized, 5, 255, cv2.THRESH_BINARY_INV)
+        equalize_mask = mask_equalized(equalized)
         cv2.imshow(name, equalize_mask)
         cv2.waitKey()
 
@@ -66,8 +67,11 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         # Treat threshold like previous `mask_flake_color()` mask and run rest of algorithm on it
-        masked = apply_morph_open(masked)
-        masked = apply_morph_close(masked)
+        masked = apply_morph_open(masked, size=EQUALIZE_OPEN_MORPH_SIZE, shape=EQUALIZE_OPEN_MORPH_SHAPE)
+        cv2.imshow(name, masked)
+        cv2.waitKey()
+
+        masked = apply_morph_close(masked, size=EQUALIZE_CLOSE_MORPH_SIZE, shape=EQUALIZE_CLOSE_MORPH_SHAPE)
         cv2.imshow(name, masked)
         cv2.waitKey()
 
