@@ -81,7 +81,7 @@ if __name__ == "__main__":
     input_dir, _ = queue[0]
 
     for s in args.s:
-        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{s}.jpg")
+        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{str(s).zfill(3)}.jpg")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         pixout = get_bg_pixels(img)

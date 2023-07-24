@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     for s in args.s:
         # Run all the flake color logic first, since that isn't what's being benchmarked here
-        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{s}.jpg")
+        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{str(s).zfill(3)}.jpg")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         pixout = get_bg_pixels(img)

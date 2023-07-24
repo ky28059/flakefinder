@@ -10,7 +10,7 @@ import numpy as np
 
 from config import EQUALIZE_OPEN_MORPH_SIZE, EQUALIZE_CLOSE_MORPH_SIZE, EQUALIZE_OPEN_MORPH_SHAPE, EQUALIZE_CLOSE_MORPH_SHAPE
 from util.queue import load_queue
-from util.processing import mask_equalized, mask_dark_pixels, apply_morph_open, apply_morph_close, get_lines
+from util.processing import mask_equalized, mask_dark_pixels, mask_contrast, apply_morph_open, apply_morph_close, get_lines
 from util.box import make_boxes, merge_boxes, draw_box, draw_line_angles
 
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     input_dir, _ = queue[0]
 
     for s in args.s:
-        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{s}.jpg")
+        img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{str(s).zfill(3)}.jpg")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
@@ -45,8 +45,8 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         # Filter out dark, non-flake chunks that will stay dark after equalization
-        dark_mask = mask_dark_pixels(img_gray)
-        cv2.imshow(name, dark_mask)
+        contrast_mask = mask_contrast(img)
+        cv2.imshow(name, contrast_mask)
         cv2.waitKey()
 
         start = time.time()
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         cv2.imshow(name, equalize_mask)
         cv2.waitKey()
 
-        masked = np.bitwise_and(dark_mask, equalize_mask)
+        masked = cv2.bitwise_and(contrast_mask, equalize_mask)
         cv2.imshow(name, masked)
         cv2.waitKey()
 

@@ -14,7 +14,7 @@ from config import threadsave, boundflag, UM_TO_PX, FLAKE_MIN_AREA_UM2, k, FONT
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import mask_equalized, mask_dark_pixels, apply_morph_open, apply_morph_close, get_lines
+from util.processing import mask_equalized, mask_contrast, apply_morph_open, apply_morph_close, get_lines, is_edge_image
 from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles
 from util.logger import logger
 
@@ -30,14 +30,10 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         img_h, img_w, _ = img.shape
 
-        # TODO: necessary?
-        img_pixels = img.copy().reshape(-1, 3)
-
         # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
         start = time.time()
-        pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
 
-        if np.sum(pixdark) / len(img_pixels) > 0.1:
+        if is_edge_image(img):
             return logger.info(f"{img_filepath} - rejected for dark pixels in {time.time() - tik} seconds")
 
         end = time.time()
@@ -47,10 +43,10 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         start = time.time()
 
         equalized = cv2.equalizeHist(img_gray)
-        dark_mask = mask_dark_pixels(img_gray)
+        contrast_mask = mask_contrast(img_gray)
         equalize_mask = mask_equalized(equalized)
 
-        masked = np.bitwise_and(dark_mask, equalize_mask)
+        masked = cv2.bitwise_and(contrast_mask, equalize_mask)
         dst = apply_morph_close(masked)
         dst = apply_morph_open(dst)
 

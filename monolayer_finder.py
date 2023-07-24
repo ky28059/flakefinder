@@ -15,7 +15,7 @@ from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, apply_morph_open, \
-                            apply_morph_close, get_lines
+                            apply_morph_close, get_lines, is_edge_image
 from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles
 from util.logger import logger
 
@@ -29,6 +29,15 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         img = cv2.imread(img_filepath)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_h, img_w, _ = img.shape
+
+        # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
+        start = time.time()
+
+        if is_edge_image(img):
+            return logger.info(f"{img_filepath} - rejected for dark pixels in {time.time() - tik} seconds")
+
+        end = time.time()
+        logger.debug(f"Stage{stage} tested for dark pixels in {end - start} seconds")
 
         # chooses pixels between provided limits, quickly filtering to potential background pixels
         start = time.time()
@@ -44,19 +53,6 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         back_rgb = get_avg_rgb(pixout)
         flake_avg_rgb = bg_to_flake_color(back_rgb)
         flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
-
-        # TODO: necessary?
-        img_pixels = img.copy().reshape(-1, 3)
-
-        # If there are too many dark pixels in the image, the image is likely at the edge of the scan; return early
-        start = time.time()
-        pixdark = np.sum((img_pixels[:, 2] < 25) * (img_pixels[:, 1] < 25) * (img_pixels[:, 0] < 25))
-
-        if np.sum(pixdark) / len(img_pixels) > 0.1:
-            return logger.info(f"{img_filepath} - rejected for dark pixels in {time.time() - tik} seconds")
-
-        end = time.time()
-        logger.debug(f"Stage{stage} tested for dark pixels in {end - start} seconds")
 
         # Mask image using thresholds and apply morph operations to reduce false positives
         start = time.time()

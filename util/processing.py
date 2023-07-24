@@ -58,12 +58,25 @@ def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     :param img: The RGB image to mask.
     :return: The masked black and white image.
     """
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
     lower = tuple(map(int, flake_avg_hsv - (6, 25, 25)))
     higher = tuple(map(int, flake_avg_hsv + (6, 25, 25)))
 
-    return cv2.inRange(hsv, lower, higher)
+    return cv2.inRange(img_hsv, lower, higher)
+
+
+def is_edge_image(img):
+    """
+    Gets whether an image lies on the edge of the scan.
+    :param img: The image to check.
+    :return: Whether it lies on the edge of the scan (whether there are too many dark pixels).
+    """
+    img_h, img_w, _ = img.shape
+    img_pixels = img_h * img_w
+
+    mask = cv2.inRange(img, (0, 0, 0), (25, 25, 25))
+    return cv2.countNonZero(mask) / img_pixels > 0.1
 
 
 def mask_equalized(equalized: np.ndarray) -> np.ndarray:
@@ -74,6 +87,13 @@ def mask_equalized(equalized: np.ndarray) -> np.ndarray:
 def mask_dark_pixels(img_gray: np.ndarray) -> np.ndarray:
     _, dark_mask = cv2.threshold(img_gray, 100, 255, cv2.THRESH_BINARY)
     return dark_mask
+
+
+def mask_contrast(img: np.ndarray) -> np.ndarray:
+    dst = cv2.convertScaleAbs(img, alpha=2.75)
+    _, contrast_mask = cv2.threshold(cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY), 250, 255, cv2.THRESH_BINARY)
+
+    return contrast_mask
 
 
 def apply_morph_open(masked: np.ndarray, size: int = OPEN_MORPH_SIZE, shape=OPEN_MORPH_SHAPE) -> np.ndarray:
