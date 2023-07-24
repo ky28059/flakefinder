@@ -43,7 +43,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         start = time.time()
 
         equalized = cv2.equalizeHist(img_gray)
-        contrast_mask = mask_contrast(img_gray)
+        contrast_mask = mask_contrast(img)
         equalize_mask = mask_equalized(equalized)
 
         masked = cv2.bitwise_and(contrast_mask, equalize_mask)
