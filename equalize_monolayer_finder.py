@@ -15,7 +15,8 @@ from config import threadsave, boundflag, UM_TO_PX, FLAKE_MIN_AREA_UM2, k, FONT,
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import mask_equalized, mask_contrast, apply_morph_open, apply_morph_close, get_lines, is_edge_image
+from util.processing import mask_equalized, mask_outer, mask_inner, apply_morph_open, apply_morph_close, get_lines, \
+    is_edge_image, get_avg_rgb, get_bg_pixels
 from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles
 from util.logger import logger
 
@@ -43,13 +44,18 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # Mask image using thresholds and apply morph operations to reduce false positives
         start = time.time()
 
+        pixout = get_bg_pixels(img)
+        back_rgb = get_avg_rgb(pixout)
+
+        outer_mask = mask_outer(img, back_rgb)
+        inner_mask = mask_inner(img, back_rgb)
+
         equalized = cv2.equalizeHist(img_gray)
-        contrast_mask = mask_contrast(img)
         equalize_mask = mask_equalized(equalized)
 
-        masked = cv2.bitwise_and(contrast_mask, equalize_mask)
-        dst = apply_morph_open(masked, size=EQUALIZE_OPEN_MORPH_SIZE, shape=EQUALIZE_OPEN_MORPH_SHAPE)
-        dst = apply_morph_close(dst, size=EQUALIZE_CLOSE_MORPH_SIZE, shape=EQUALIZE_CLOSE_MORPH_SHAPE)
+        masked = cv2.bitwise_and(outer_mask, inner_mask, mask=equalize_mask)
+        dst = apply_morph_close(masked)
+        dst = apply_morph_open(dst)
 
         end = time.time()
         logger.debug(f"Stage{stage} thresholded and transformed in {end - start} seconds")

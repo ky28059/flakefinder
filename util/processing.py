@@ -4,7 +4,7 @@ import numpy as np
 from config import OPEN_MORPH_SIZE, CLOSE_MORPH_SIZE, OPEN_MORPH_SHAPE, CLOSE_MORPH_SHAPE, UM_TO_PX, \
                    FLAKE_MIN_EDGE_LENGTH_UM, FLAKE_ANGLE_TOLERANCE_RADS, k
 
-RGB = list[int]
+RGB = tuple[int, int, int]
 FlakeRGB = np.ndarray[int]
 
 
@@ -48,7 +48,7 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
     green_freq[0] = 0
     blue_freq[0] = 0
 
-    return [red_freq.argmax(), green_freq.argmax(), blue_freq.argmax()]
+    return int(red_freq.argmax()), int(green_freq.argmax()), int(blue_freq.argmax())
 
 
 def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
@@ -84,16 +84,13 @@ def mask_equalized(equalized: np.ndarray) -> np.ndarray:
     return equalize_mask
 
 
-def mask_dark_pixels(img_gray: np.ndarray) -> np.ndarray:
-    _, dark_mask = cv2.threshold(img_gray, 100, 255, cv2.THRESH_BINARY)
-    return dark_mask
+def mask_outer(img: np.ndarray, back_rgb: RGB) -> np.ndarray:
+    return cv2.inRange(img, np.array(back_rgb) - (30, 20, 5), np.array(back_rgb) + (0, 0, 10))
 
 
-def mask_contrast(img: np.ndarray) -> np.ndarray:
-    dst = cv2.convertScaleAbs(img, alpha=2.75)
-    _, contrast_mask = cv2.threshold(cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY), 250, 255, cv2.THRESH_BINARY)
-
-    return contrast_mask
+def mask_inner(img: np.ndarray, back_rgb: RGB) -> np.ndarray:
+    mask = cv2.inRange(img, np.array(back_rgb) - (10, 5, back_rgb[2]), np.array(back_rgb) + (255, 255, 0))
+    return cv2.bitwise_not(mask)
 
 
 def apply_morph_open(masked: np.ndarray, size: int = OPEN_MORPH_SIZE, shape=OPEN_MORPH_SHAPE) -> np.ndarray:

@@ -10,7 +10,8 @@ import numpy as np
 
 from config import EQUALIZE_OPEN_MORPH_SIZE, EQUALIZE_CLOSE_MORPH_SIZE, EQUALIZE_OPEN_MORPH_SHAPE, EQUALIZE_CLOSE_MORPH_SHAPE
 from util.queue import load_queue
-from util.processing import mask_equalized, mask_dark_pixels, mask_contrast, apply_morph_open, apply_morph_close, get_lines
+from util.processing import mask_equalized, apply_morph_open, apply_morph_close, get_lines, \
+    get_bg_pixels, get_avg_rgb, mask_outer, mask_inner
 from util.box import make_boxes, merge_boxes, draw_box, draw_line_angles
 
 
@@ -45,8 +46,25 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         # Filter out dark, non-flake chunks that will stay dark after equalization
-        contrast_mask = mask_contrast(img)
-        cv2.imshow(name, contrast_mask)
+        pixout = get_bg_pixels(img)
+        back_rgb = get_avg_rgb(pixout)
+
+        start = time.time()
+        outer_mask = mask_outer(img, back_rgb)
+        end = time.time()
+
+        print(f"Created outer mask for {s} in {end - start} seconds")
+
+        cv2.imshow(name, outer_mask)
+        cv2.waitKey()
+
+        start = time.time()
+        inner_mask = mask_inner(img, back_rgb)
+        end = time.time()
+
+        print(f"Created inner mask for {s} in {end - start} seconds")
+
+        cv2.imshow(name, inner_mask)
         cv2.waitKey()
 
         start = time.time()
@@ -58,20 +76,30 @@ if __name__ == "__main__":
         cv2.imshow(name, equalized)
         cv2.waitKey()
 
+        start = time.time()
         equalize_mask = mask_equalized(equalized)
+        end = time.time()
+
+        print(f"Created equalize mask for {s} in {end - start} seconds")
+
         cv2.imshow(name, equalize_mask)
         cv2.waitKey()
 
-        masked = cv2.bitwise_and(contrast_mask, equalize_mask)
+        start = time.time()
+        masked = cv2.bitwise_and(outer_mask, inner_mask, mask=equalize_mask)
+        end = time.time()
+
+        print(f"Combined masks for {s} in {end - start} seconds")
+
         cv2.imshow(name, masked)
         cv2.waitKey()
 
         # Treat threshold like previous `mask_flake_color()` mask and run rest of algorithm on it
-        masked = apply_morph_open(masked, size=EQUALIZE_OPEN_MORPH_SIZE, shape=EQUALIZE_OPEN_MORPH_SHAPE)
+        masked = apply_morph_close(masked)
         cv2.imshow(name, masked)
         cv2.waitKey()
 
-        masked = apply_morph_close(masked, size=EQUALIZE_CLOSE_MORPH_SIZE, shape=EQUALIZE_CLOSE_MORPH_SHAPE)
+        masked = apply_morph_open(masked)
         cv2.imshow(name, masked)
         cv2.waitKey()
 
