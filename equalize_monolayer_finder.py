@@ -10,7 +10,8 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-from config import threadsave, boundflag, UM_TO_PX, FLAKE_MIN_AREA_UM2, k, FONT
+from config import threadsave, boundflag, UM_TO_PX, FLAKE_MIN_AREA_UM2, k, FONT, EQUALIZE_OPEN_MORPH_SIZE, \
+                   EQUALIZE_OPEN_MORPH_SHAPE, EQUALIZE_CLOSE_MORPH_SIZE, EQUALIZE_CLOSE_MORPH_SHAPE
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
@@ -47,8 +48,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         equalize_mask = mask_equalized(equalized)
 
         masked = cv2.bitwise_and(contrast_mask, equalize_mask)
-        dst = apply_morph_close(masked)
-        dst = apply_morph_open(dst)
+        dst = apply_morph_open(masked, size=EQUALIZE_OPEN_MORPH_SIZE, shape=EQUALIZE_OPEN_MORPH_SHAPE)
+        dst = apply_morph_close(dst, size=EQUALIZE_CLOSE_MORPH_SIZE, shape=EQUALIZE_CLOSE_MORPH_SHAPE)
 
         end = time.time()
         logger.debug(f"Stage{stage} thresholded and transformed in {end - start} seconds")
