@@ -29,6 +29,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         img = cv2.imread(img_filepath)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         img_h, img_w, _ = img.shape
 
@@ -46,14 +47,14 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         pixout = get_bg_pixels(img)
         back_rgb = get_avg_rgb(pixout)
+        back_hsv = cv2.cvtColor(np.uint8([[back_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
 
-        outer_mask = mask_outer(img, back_rgb)
-        inner_mask = mask_inner(img, back_rgb)
+        outer_mask = mask_outer(img_hsv, back_hsv)
 
         equalized = cv2.equalizeHist(img_gray)
         equalize_mask = mask_equalized(equalized)
 
-        masked = cv2.bitwise_and(outer_mask, inner_mask, mask=equalize_mask)
+        masked = cv2.bitwise_and(outer_mask, equalize_mask)
         dst = apply_morph_close(masked)
         dst = apply_morph_open(dst)
 
