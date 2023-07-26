@@ -51,7 +51,7 @@ if __name__ == "__main__":
         back_rgb = get_avg_rgb(pixout)
         back_hsv = cv2.cvtColor(np.uint8([[back_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
 
-        print(back_hsv[0])
+        print(back_hsv)
 
         start = time.time()
         outer_mask = mask_outer(img_hsv, back_hsv)

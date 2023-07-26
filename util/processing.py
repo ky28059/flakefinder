@@ -25,12 +25,12 @@ def bg_to_flake_color(rgb: RGB) -> FlakeRGB:
 
 def get_bg_pixels(img: np.ndarray):
     # Lower and higher RGB limits for what code can see as background
-    lowlim = np.array([87, 100, 99])
-    highlim = np.array([114, 118, 114])
+    # lowlim = np.array([87, 100, 99])
+    # highlim = np.array([114, 118, 114])
 
     imsmall = cv2.resize(img.copy(), dsize=(256 * k, 171 * k)).reshape(-1, 3)
-    test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
-    return imsmall * np.sign(test + abs(test))
+    # test = np.sign(imsmall - lowlim) + np.sign(highlim - imsmall)
+    return imsmall # * np.sign(test + abs(test))
 
 
 def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
@@ -80,12 +80,12 @@ def is_edge_image(img):
 
 
 def mask_equalized(equalized: np.ndarray) -> np.ndarray:
-    _, equalize_mask = cv2.threshold(equalized, 15, 255, cv2.THRESH_BINARY_INV)
+    _, equalize_mask = cv2.threshold(equalized, 25, 255, cv2.THRESH_BINARY_INV)
     return equalize_mask
 
 
 def mask_outer(img_hsv: np.ndarray, back_hsv: tuple[int, int, int]) -> np.ndarray:
-    return cv2.inRange(img_hsv, (80, 25, 100), (105, 75, int(back_hsv[2]) + 5))
+    return cv2.inRange(img_hsv, (82, int(back_hsv[1]) - 10, 105), (105, int(back_hsv[1]) + 55, int(back_hsv[2]) + 5))
 
 
 def mask_inner(img: np.ndarray, back_rgb: RGB) -> np.ndarray:
