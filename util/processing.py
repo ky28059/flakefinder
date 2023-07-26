@@ -80,12 +80,12 @@ def is_edge_image(img):
 
 
 def mask_equalized(equalized: np.ndarray) -> np.ndarray:
-    _, equalize_mask = cv2.threshold(equalized, 5, 255, cv2.THRESH_BINARY_INV)
+    _, equalize_mask = cv2.threshold(equalized, 15, 255, cv2.THRESH_BINARY_INV)
     return equalize_mask
 
 
-def mask_outer(img: np.ndarray, back_rgb: RGB) -> np.ndarray:
-    return cv2.inRange(img, np.array(back_rgb) - (30, 20, 5), np.array(back_rgb) + (0, 0, 10))
+def mask_outer(img_hsv: np.ndarray, back_hsv: tuple[int, int, int]) -> np.ndarray:
+    return cv2.inRange(img_hsv, (80, 25, 100), (105, 75, int(back_hsv[2]) + 5))
 
 
 def mask_inner(img: np.ndarray, back_rgb: RGB) -> np.ndarray:
