@@ -10,8 +10,8 @@ import numpy as np
 
 from config import EQUALIZE_OPEN_MORPH_SIZE, EQUALIZE_CLOSE_MORPH_SIZE, EQUALIZE_OPEN_MORPH_SHAPE, EQUALIZE_CLOSE_MORPH_SHAPE
 from util.queue import load_queue
-from util.processing import mask_equalized, apply_morph_open, apply_morph_close, get_lines, \
-    get_bg_pixels, get_avg_rgb, mask_outer, mask_inner
+from util.processing import mask_outer, mask_equalized, apply_morph_open, apply_morph_close, get_lines, \
+    get_bg_pixels, get_avg_rgb, is_edge_image
 from util.box import make_boxes, merge_boxes, draw_box, draw_line_angles
 
 
@@ -45,6 +45,10 @@ if __name__ == "__main__":
 
         cv2.imshow(name, img_gray)
         cv2.waitKey()
+
+        if is_edge_image(img):
+            print(f"Rejected {s} for dark pixels")
+            continue
 
         # Filter out dark, non-flake chunks that will stay dark after equalization
         pixout = get_bg_pixels(img)

@@ -15,8 +15,8 @@ from config import threadsave, boundflag, UM_TO_PX, FLAKE_MIN_AREA_UM2, k, FONT,
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
-from util.processing import mask_equalized, mask_outer, mask_inner, apply_morph_open, apply_morph_close, get_lines, \
-    is_edge_image, get_avg_rgb, get_bg_pixels
+from util.processing import mask_equalized, mask_outer, apply_morph_open, apply_morph_close, get_lines, \
+                            is_edge_image, get_avg_rgb, get_bg_pixels
 from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles
 from util.logger import logger
 
