@@ -85,9 +85,10 @@ def mask_equalized(equalized: np.ndarray) -> np.ndarray:
 
 
 def mask_outer(img_hsv: np.ndarray, back_hsv: tuple[int, int, int]) -> np.ndarray:
+    is_special = 35 < back_hsv[0] < 50 or back_hsv[1] > 50  # TODO: rather hacky
     return cv2.inRange(
         img_hsv,
-        (82, int(back_hsv[1]) - 10, 105),
+        (82 if is_special else 90, int(back_hsv[1]) + (-10 if is_special else 20), 105),
         (105, int(back_hsv[1]) + 70, int(back_hsv[2]) + 5)
     )
 
