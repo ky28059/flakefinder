@@ -85,14 +85,10 @@ def mask_equalized(equalized: np.ndarray) -> np.ndarray:
 
 
 def mask_outer(img_hsv: np.ndarray, back_hsv: tuple[int, int, int]) -> np.ndarray:
-    flake_hue_range = \
-        (82, 100) if 20 < back_hsv[0] < 51 else \
-        (100, 105) if back_hsv[0] < 20 else \
-        (91, 102)  # TODO: hacky
     return cv2.inRange(
         img_hsv,
-        (flake_hue_range[0], int(back_hsv[1]) - 10, 105),
-        (flake_hue_range[1], int(back_hsv[1]) + 55, int(back_hsv[2]) + 5)
+        (82, int(back_hsv[1]) - 10, 105),
+        (105, int(back_hsv[1]) + 70, int(back_hsv[2]) + 5)
     )
 
 

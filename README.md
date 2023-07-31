@@ -30,6 +30,7 @@ Performance ~1-10s per 20 megapixel file at scale=1, k=4 on the Leica computer, 
 - `FLAKE_MIN_AREA_UM2` — The minimum area (in μm<sup>2</sup>) a detected contour must have to be considered a valid flake.
 - `FLAKE_MIN_EDGE_LENGTH_UM` —  The minimum length (in μm) a detected flake edge must have to be counted.
 - `FLAKE_ANGLE_TOLERANCE_RADS` — The tolerance (in radians) an angle between two detected lines can be from a multiple of 30 degrees to still be labelled as interesting.
+- `FLAKE_R_CUTOFF` — The maximum ratio of perimeter<sup>2</sup> / area a detection can have to be considered a flake. Increasing this will allow detection of thin, stripey flakes, but may also cause false positives with non-flake noise.
 
 #### Morphology
 - `OPEN_MORPH_SIZE` — The size of the `MORPH_OPEN` operation applied to the image mask to reduce noise. Larger = more non-flake

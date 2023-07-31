@@ -103,11 +103,11 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         # Treat threshold like previous `mask_flake_color()` mask and run rest of algorithm on it
-        masked = apply_morph_close(masked, size=3, shape=cv2.MORPH_CROSS)
+        masked = apply_morph_close(masked, size=EQUALIZE_CLOSE_MORPH_SIZE, shape=EQUALIZE_CLOSE_MORPH_SHAPE)
         cv2.imshow(name, masked)
         cv2.waitKey()
 
-        masked = apply_morph_open(masked, size=1)
+        masked = apply_morph_open(masked, size=EQUALIZE_OPEN_MORPH_SIZE, shape=EQUALIZE_OPEN_MORPH_SHAPE)
         cv2.imshow(name, masked)
         cv2.waitKey()
 

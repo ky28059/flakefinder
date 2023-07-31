@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from util.queue import load_queue
-from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, get_bg_pixels
+from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, mask_outer, mask_equalized, get_bg_pixels
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -83,6 +83,8 @@ if __name__ == "__main__":
     for s in args.s:
         img = cv2.imread(f"{input_dir}\\TileScan_001--Stage{str(s).zfill(3)}.jpg")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
         pixout = get_bg_pixels(img)
 
@@ -97,5 +99,6 @@ if __name__ == "__main__":
         # Calculate histograms from image
         show_img()
 
-        mask = mask_flake_color(img, flake_avg_hsv)
-        show_img(mask)
+        outer_mask = mask_outer(img_hsv, back_hsv)
+        equalize_mask = mask_equalized(cv2.equalizeHist(img_gray))
+        show_img(cv2.bitwise_and(outer_mask, equalize_mask))

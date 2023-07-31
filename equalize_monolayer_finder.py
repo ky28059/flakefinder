@@ -55,8 +55,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         equalize_mask = mask_equalized(equalized)
 
         masked = cv2.bitwise_and(outer_mask, equalize_mask)
-        dst = apply_morph_close(masked)
-        dst = apply_morph_open(dst)
+        dst = apply_morph_close(masked, size=EQUALIZE_CLOSE_MORPH_SIZE, shape=EQUALIZE_CLOSE_MORPH_SHAPE)
+        dst = apply_morph_open(dst, size=EQUALIZE_OPEN_MORPH_SIZE, shape=EQUALIZE_OPEN_MORPH_SHAPE)
 
         end = time.time()
         logger.debug(f"Stage{stage} thresholded and transformed in {end - start} seconds")

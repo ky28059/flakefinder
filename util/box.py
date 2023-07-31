@@ -3,14 +3,14 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB
+from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB
 from util.processing import in_bounds, get_angles
 
 
 @dataclass
 class Box:
     contours: np.ndarray
-    area: int
+    area: float
     x: int
     y: int
     width: int
@@ -46,6 +46,7 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
         _, _, child, parent = hierarchy[0][i]
 
         area = cv2.contourArea(cnt)
+        perimeter = cv2.arcLength(cnt, True)
 
         # Subtract child contours to better represent area
         # https://docs.opencv.org/4.x/d9/d8b/tutorial_py_contours_hierarchy.html
@@ -61,6 +62,9 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
             child, _, _, _ = hierarchy[0][child]
 
         if area < FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2):
+            continue
+
+        if (perimeter ** 2) / area > FLAKE_R_CUTOFF:
             continue
 
         x, y, w, h = cv2.boundingRect(cnt)
