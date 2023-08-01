@@ -89,7 +89,7 @@ def mask_outer(img_hsv: np.ndarray, back_hsv: tuple[int, int, int]) -> np.ndarra
     return cv2.inRange(
         img_hsv,
         (82 if is_special else 90, int(back_hsv[1]) + (-10 if is_special else 20), 105),
-        (105, int(back_hsv[1]) + 70, int(back_hsv[2]) + 5)
+        (105, int(back_hsv[1]) + 50, int(back_hsv[2]) + 5)
     )
 
 
