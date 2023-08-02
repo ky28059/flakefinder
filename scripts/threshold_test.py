@@ -83,8 +83,8 @@ if __name__ == "__main__":
 
         tik = time.time()
         boxes = make_boxes(contours, hierarchy, img.shape[0], img.shape[1])
-        boxes = merge_boxes(masked, boxes)
-        boxes = merge_boxes(masked, boxes)
+        boxes = merge_boxes(boxes)
+        boxes = merge_boxes(boxes)
         tok = time.time()
 
         print(f"Generated and merged boxes in {tok - tik} seconds")

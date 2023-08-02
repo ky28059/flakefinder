@@ -117,8 +117,8 @@ if __name__ == "__main__":
         cv2.waitKey()
 
         boxes = make_boxes(contours, hierarchy, img.shape[0], img.shape[1])
-        boxes = merge_boxes(masked, boxes)
-        boxes = merge_boxes(masked, boxes)
+        boxes = merge_boxes(boxes)
+        boxes = merge_boxes(boxes)
 
         for box in boxes:
             img = draw_box(img, box)

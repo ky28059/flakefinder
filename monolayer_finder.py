@@ -77,8 +77,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         start = time.time()
 
         boxes = make_boxes(contours, hierarchy, img_h, img_w)
-        boxes = merge_boxes(masked, boxes)
-        boxes = merge_boxes(masked, boxes)
+        boxes = merge_boxes(boxes)
+        boxes = merge_boxes(boxes)
 
         end = time.time()
         logger.debug(f"Stage{stage} generated and merged boxes in {end - start} seconds")

@@ -25,6 +25,19 @@ class Box:
             np.logical_and(np.arange(bound_x, w) >= self.x - b, np.arange(bound_x, w) <= self.x + self.width + 2 * b),
         )
 
+    def intersects(self, other: 'Box', b=5) -> bool:
+        x1 = self.x
+        x2 = self.x + self.width
+        y1 = self.y
+        y2 = self.y + self.height
+
+        x3 = other.x - b
+        x4 = other.x + other.width + b
+        y3 = other.y - b
+        y4 = other.y + other.height + b
+
+        return y1 <= y4 and y2 >= y3 and x1 <= x4 and x2 >= x3
+
 
 def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
     """
@@ -76,10 +89,9 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
     return boxes
 
 
-def merge_boxes(dbscan_img, boxes: list[Box]) -> list[Box]:
+def merge_boxes(boxes: list[Box]) -> list[Box]:
     """
     Merges a list of boxes by combining boxes with overlap.
-    :param dbscan_img: TODO
     :param boxes: The list of boxes to merge.
     :return: The merged list.
     """
@@ -92,16 +104,8 @@ def merge_boxes(dbscan_img, boxes: list[Box]) -> list[Box]:
         i = boxes[_i]
         for _j in range(_i + 1, len(boxes)):
             j = boxes[_j]
-            # Ith box is always <= jth box regarding y. Not necessarily w.r.t x.
-            # sequence the y layers.
-            # just cheat and use Intersection in pixel space method.
-            on_i = i.to_mask(dbscan_img)
-            on_j = j.to_mask(dbscan_img)
 
-            # Now calculate their intersection. If there's any overlap we'll count that.
-            intersection_count = np.logical_and(on_i, on_j).sum()
-
-            if intersection_count > 0:
+            if i.intersects(j):
                 # Extend the first box to include dimensions of the 2nd box.
                 x_min = min(i.x, j.x)
                 x_max = max(i.x + i.width, j.x + j.width)
