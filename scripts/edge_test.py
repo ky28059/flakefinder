@@ -68,3 +68,31 @@ if __name__ == "__main__":
 
         cv2.imshow(name, dst)
         cv2.waitKey()
+
+        # Benchmark Shi-Tomasi corner detection
+        # https://docs.opencv.org/3.4/d8/dd8/tutorial_good_features_to_track.html
+        start = time.time()
+        corners = cv2.goodFeaturesToTrack(img_gray, 500, 0.01, 10)
+        end = time.time()
+
+        dst = img.copy()
+        for corner in corners:
+            cv2.circle(dst, (int(corner[0, 0]), int(corner[0, 1])), 3, (0, 0, 255), cv2.FILLED)
+
+        print(f"Finished Shi-Tomasi for {s} in {end - start} seconds")
+
+        cv2.imshow(name, dst)
+        cv2.waitKey()
+
+        start = time.time()
+        corners = cv2.cornerSubPix(img_gray, corners, (5, 5), (-1, -1), (cv2.TERM_CRITERIA_EPS + cv2.TermCriteria_COUNT, 40, 0.001))
+        end = time.time()
+
+        dst = img.copy()
+        for corner in corners:
+            cv2.circle(dst, (int(corner[0, 0]), int(corner[0, 1])), 3, (0, 0, 255), cv2.FILLED)
+
+        print(f"Finished subpixel corner refinement for {s} in {end - start} seconds")
+
+        cv2.imshow(name, dst)
+        cv2.waitKey()
