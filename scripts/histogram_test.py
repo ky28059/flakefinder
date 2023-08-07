@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from util.queue import load_queue
-from util.processing import bg_to_flake_color, get_avg_rgb, mask_flake_color, mask_outer, mask_equalized, get_bg_pixels
+from util.processing import bg_to_flake_color, get_avg_rgb, mask_outer, mask_equalized, get_bg_pixels, RGB
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -19,7 +19,7 @@ matplotlib.use('tkagg')
 use_cv2_hist = True
 
 
-def make_histogram(img: np.ndarray, mask, title: str, n: int, back: list[int] | int, flake: np.ndarray[int] | int, lim: int = 256):
+def make_histogram(img: np.ndarray, mask, title: str, n: int, back: RGB | int, flake: np.ndarray[int] | int, lim: int = 256):
     print(f"Plotting {title}")
     dims = len(img.shape)
     channel = n - 1 if dims == 3 else 0

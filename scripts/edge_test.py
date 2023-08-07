@@ -69,6 +69,19 @@ if __name__ == "__main__":
         cv2.imshow(name, dst)
         cv2.waitKey()
 
+        # Benchmark Canny edge detector
+        start = time.time()
+        dst = cv2.Canny(img_gray, 0, 255)
+        end = time.time()
+
+        print(f"Finished Canny for {s} in {end - start} seconds")
+
+        cv2.imshow(name, img)
+        cv2.waitKey()
+
+        cv2.imshow(name, dst)
+        cv2.waitKey()
+
         # Benchmark Shi-Tomasi corner detection
         # https://docs.opencv.org/3.4/d8/dd8/tutorial_good_features_to_track.html
         start = time.time()

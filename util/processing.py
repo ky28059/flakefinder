@@ -53,10 +53,12 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
 
 def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     """
-    Mask an image to black and white pixels based on whether it is within threshold of the given flake color.
+    Mask an image to black and white pixels based on whether it is within threshold of the given flake color, used by
+    the algorithm in `monolayer_finder.py`.
+
     :param flake_avg_hsv: The average flake color (in HSV).
-    :param img: The RGB image to mask.
-    :return: The masked black and white image.
+    :param img: The RGB image.
+    :return: The black and white image mask.
     """
     img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
 
@@ -80,6 +82,13 @@ def is_edge_image(img):
 
 
 def mask_equalized(equalized: np.ndarray) -> np.ndarray:
+    """
+    Mask for dark pixels in an equalized grayscale image. Used to filter flakes for the algorithm in
+    `equalize_monolayer_finder.py`.
+
+    :param equalized: The grayscale result of `cv2.equalizeHist()`.
+    :return: The black and white image mask.
+    """
     _, equalize_mask = cv2.threshold(equalized, 25, 255, cv2.THRESH_BINARY_INV)
     return equalize_mask
 
