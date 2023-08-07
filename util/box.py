@@ -16,15 +16,6 @@ class Box:
     width: int
     height: int
 
-    def to_mask(self, img, b=5):
-        h, w = img.shape
-        bound_x = min(0, self.x)
-        bound_y = min(0, self.y)
-        return np.logical_and.outer(
-            np.logical_and(np.arange(bound_y, h) >= self.y - b, np.arange(bound_y, h) <= self.y + self.height + 2 * b),
-            np.logical_and(np.arange(bound_x, w) >= self.x - b, np.arange(bound_x, w) <= self.x + self.width + 2 * b),
-        )
-
     def intersects(self, other: 'Box', b=5) -> bool:
         x1 = self.x
         x2 = self.x + self.width
