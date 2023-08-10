@@ -13,9 +13,10 @@ def load_queue(input_file_path: str) -> list[tuple[str, str]]:
     :param input_file_path: The path to the queue file.
     :return: The parsed list of input and output directories, given in pairs of `[input_dir, output_dir]`
     """
+    print(input_file_path)
     with open(str(input_file_path)) as file1:
         inputs = file1.readlines()
-
+    print(inputs)
     config = [re.match(r"InputDir: (.+), OutputDir: (.+)", line).group(1, 2) for line in inputs]
 
     logger.info(f"Loaded config: {config}")

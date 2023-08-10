@@ -3,8 +3,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB
-from util.processing import in_bounds, get_angles
+from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB
+from util.processing import in_bounds, get_angles, get_avg_rgb
 
 
 @dataclass
@@ -41,7 +41,6 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
     """
     boxes = []
     inner_indices = []
-
     for i in range(len(contours)):
         if i in inner_indices:
             continue
@@ -50,6 +49,7 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
         _, _, child, parent = hierarchy[0][i]
 
         area = cv2.contourArea(cnt)
+
         perimeter = cv2.arcLength(cnt, True)
 
         # Subtract child contours to better represent area
@@ -67,8 +67,11 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[Box]:
 
         if area < FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2):
             continue
+        if area > FLAKE_MAX_AREA_UM2 * (UM_TO_PX ** 2):
+            continue 
 
         if (perimeter ** 2) / area > FLAKE_R_CUTOFF:
+            
             continue
 
         x, y, w, h = cv2.boundingRect(cnt)
@@ -140,6 +143,26 @@ def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
 
     return img
 
+def get_flake_color(img: np.ndarray, flakergb: np.ndarray, b: Box) -> np.ndarray:
+    x = int(b.x)
+    y = int(b.y)
+    w = int(b.width)
+    h = int(b.height)
+    imchunk=img[y:y+h,x:x+w]
+    lower = tuple(map(int, flakergb - (6, 6, 6)))
+    higher = tuple(map(int, flakergb + (6, 6, 6)))
+    masker=cv2.inRange(imchunk, lower, higher)/255
+    h,w,c=imchunk.shape
+    imchunk=imchunk.reshape((-1,3))
+    
+    masker=masker.reshape((-1,1)).astype(np.uint8)
+    imchunk2=imchunk*masker
+    rgb=get_avg_rgb(imchunk2)
+    if np.array(rgb).all()>0:
+        return rgb
+    else:
+        rgb=[np.bincount(imchunk[:, 0]).argmax(),np.bincount(imchunk[:, 1]).argmax(),np.bincount(imchunk[:, 2]).argmax()]
+        return rgb
 
 def draw_line_angles(img: np.ndarray, box: Box, lines) -> list[float]:
     angles = []

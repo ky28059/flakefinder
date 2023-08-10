@@ -2,16 +2,17 @@ import cv2
 import numpy as np
 
 
-threadsave = 1  # number of threads NOT allocated when running
+threadsave = 4  # number of threads NOT allocated when running
 boundflag = 1
-# t_color_match_count = 0.000225  # fraction of image that must look like monolayers
+
 k = 4
 
 # Detection parameters
-UM_TO_PX = 4
+UM_TO_PX = 4.164
 
 FLAKE_MIN_AREA_UM2 = 100
-# FLAKE_MAX_AREA_UM2 = 4000
+t_color_match_count = 0.000225*FLAKE_MIN_AREA_UM2/200  # fraction of image that must look like monolayers
+FLAKE_MAX_AREA_UM2 = 6000
 
 FLAKE_MIN_EDGE_LENGTH_UM = 10
 FLAKE_ANGLE_TOLERANCE_RADS = np.deg2rad(2)

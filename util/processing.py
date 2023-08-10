@@ -16,9 +16,9 @@ def bg_to_flake_color(rgb: RGB) -> FlakeRGB:
     """
     red, green, blue = rgb
 
-    flake_red = int(round(0.8643 * red - 2.55, 0))
-    flake_green = int(round(0.8601 * green + 9.6765, 0))
-    flake_blue = blue + 4
+    flake_red = 0.8289 * red +1.888
+    flake_green = 0.9456 * green + 0.402
+    flake_blue = 1.061 * blue-4.336
 
     return np.array([flake_red, flake_green, flake_blue])
 
@@ -47,10 +47,21 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
     red_freq[0] = 0  # otherwise argmax finds values masked to 0
     green_freq[0] = 0
     blue_freq[0] = 0
-
+    
     return int(red_freq.argmax()), int(green_freq.argmax()), int(blue_freq.argmax())
 
-
+def mask_bg(img: np.ndarray, back_rgb: tuple[int, int, int], back_hsv: tuple[int, int, int]) -> np.ndarray:
+    lower = tuple(map(int,  np.array(back_rgb) -(44, 15, 5)))
+    higher = tuple(map(int, np.array(back_rgb) -(8, -24, -8)))
+    #print(lower,higher)
+    maskrgb=cv2.inRange(img, lower, higher)
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    
+    lower = tuple(map(int,  np.array(back_hsv) - (75,30,19)))
+    higher = tuple(map(int, np.array(back_hsv) - (-120,-60,-7)))
+    maskhsv=cv2.inRange(img_hsv, lower, higher)
+    maskbg=maskrgb*maskhsv.astype(np.float32)/255
+    return maskbg.astype(np.uint8)
 def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     """
     Mask an image to black and white pixels based on whether it is within threshold of the given flake color, used by
@@ -64,9 +75,26 @@ def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
 
     lower = tuple(map(int, flake_avg_hsv - (6, 25, 25)))
     higher = tuple(map(int, flake_avg_hsv + (6, 25, 25)))
+    
+    mask=cv2.inRange(img_hsv, lower, higher)
+    return mask
 
-    return cv2.inRange(img_hsv, lower, higher)
+def mask_flake_color2(img: np.ndarray, flake_avg_rgb: np.ndarray) -> np.ndarray:
+    """
+    Mask an image to black and white pixels based on whether it is within threshold of the given flake color, used by
+    the algorithm in `monolayer_finder.py`.
 
+    :param flake_avg_hsv: The average flake color (in HSV).
+    :param img: The RGB image.
+    :return: The black and white image mask.
+    """
+    mask = np.sqrt(np.sum((img - flake_avg_rgb) ** 2, axis=2))
+    mask=np.asarray(mask<8)
+    lower = tuple(map(int, flake_avg_rgb - (8, 7, 5)))
+    higher = tuple(map(int, flake_avg_rgb + (8, 7, 5)))
+    mask2=cv2.inRange(img, lower, higher)
+    mask=mask*mask2
+    return mask
 
 def is_edge_image(img):
     """
@@ -77,7 +105,7 @@ def is_edge_image(img):
     img_h, img_w, _ = img.shape
     img_pixels = img_h * img_w
 
-    mask = cv2.inRange(img, (0, 0, 0), (25, 25, 25))
+    mask = cv2.inRange(img, (0, 0, 0), (50, 50, 50))
     return cv2.countNonZero(mask) / img_pixels > 0.1
 
 
@@ -146,7 +174,7 @@ def in_bounds(x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> bool:
     return x2 > delt * w and y2 > delt * h and x1 < (1 - delt) * w and y1 < (1 - delt) * h
 
 
-def get_lines(img: np.ndarray, contour) -> np.ndarray[tuple[tuple[float, float, float, float]]] | None:
+def get_lines(img: np.ndarray, contour):# -> np.ndarray[tuple[tuple[float, float, float, float]]] | None:
     mask = np.zeros(img.shape, np.uint8)
     mask = cv2.drawContours(mask, contour, -1, (255, 255, 255), 1)
 
@@ -173,7 +201,7 @@ def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> l
             t2 = np.arctan2(x22 - x12, y22 - y12)
             t = (t2 - t1) % (2 * np.pi)
 
-            if t % (np.pi / 6) > FLAKE_ANGLE_TOLERANCE_RADS or t < FLAKE_ANGLE_TOLERANCE_RADS or t > 2 * np.pi - FLAKE_ANGLE_TOLERANCE_RADS:
+            if t % (np.pi / 6) > FLAKE_ANGLE_TOLERANCE_RADS or t < (np.pi / 6) - FLAKE_ANGLE_TOLERANCE_RADS or t > 2 * np.pi - FLAKE_ANGLE_TOLERANCE_RADS:
                 continue
 
             ret.append(t)
