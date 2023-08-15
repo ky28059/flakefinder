@@ -8,18 +8,21 @@ RGB = tuple[int, int, int]
 FlakeRGB = np.ndarray[int]
 
 
-def bg_to_flake_color(rgb: RGB) -> FlakeRGB:
+def bg_to_flake_color(rgb: RGB, n_layer: int) -> FlakeRGB:
     """
     Returns the flake color based on an input background color. Values determined empirically.
     :param rgb: The RGB array representing the color of the background.
     :return: The RGB array representing the color of the flake.
     """
     red, green, blue = rgb
-
-    flake_red = 0.8289 * red +1.888
-    flake_green = 0.9456 * green + 0.402
-    flake_blue = 1.061 * blue-4.336
-
+    if n_layer==1:
+        flake_red = 0.8289 * red +1.888
+        flake_green = 0.9456 * green + 0.402
+        flake_blue = 1.061 * blue-4.336
+    elif n_layer==2:
+        flake_red = 0.8861*red-19.22
+        flake_green = 0.9472*green-5.691
+        flake_blue = 1.028*blue+3.368
     return np.array([flake_red, flake_green, flake_blue])
 
 
@@ -50,16 +53,21 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
     
     return int(red_freq.argmax()), int(green_freq.argmax()), int(blue_freq.argmax())
 
-def mask_bg(img: np.ndarray, back_rgb: tuple[int, int, int], back_hsv: tuple[int, int, int]) -> np.ndarray:
-    lower = tuple(map(int,  np.array(back_rgb) -(44, 15, 5)))
-    higher = tuple(map(int, np.array(back_rgb) -(8, -24, -8)))
-    #print(lower,higher)
-    maskrgb=cv2.inRange(img, lower, higher)
+def mask_bg(img: np.ndarray, back_rgb: tuple[int, int, int], back_hsv: tuple[int, int, int], n_layer: int) -> np.ndarray:
+    if n_layer==1:
+        lowerrgb = (44, 15, 5)
+        higherrgb = (8, -24, -8)
+        lowerhsv = (75,30,19)
+        higherhsv = (-120,-60,-7)
+        #print(lower,higher)
+    if n_layer==2:
+        lowerrgb = (38, 17, -6)
+        higherrgb = (26, 7, -11)
+        lowerhsv = (66,-42,6)
+        higherhsv = (-86,-86,-10)
+    maskrgb=cv2.inRange(img, tuple(map(int,  np.array(back_rgb) -lowerrgb)), tuple(map(int, np.array(back_rgb) -higherrgb)))
     img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    
-    lower = tuple(map(int,  np.array(back_hsv) - (75,30,19)))
-    higher = tuple(map(int, np.array(back_hsv) - (-120,-60,-7)))
-    maskhsv=cv2.inRange(img_hsv, lower, higher)
+    maskhsv=cv2.inRange(img_hsv, tuple(map(int,  np.array(back_hsv) - lowerhsv)), tuple(map(int, np.array(back_hsv) - higherhsv)))
     maskbg=maskrgb*maskhsv.astype(np.float32)/255
     return maskbg.astype(np.uint8)
 def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
@@ -180,10 +188,34 @@ def get_lines(img: np.ndarray, contour):# -> np.ndarray[tuple[tuple[float, float
 
     # TODO: make the mask b&w to begin with
     # https://docs.opencv.org/3.4/d9/db0/tutorial_hough_lines.html
-    return cv2.HoughLinesP(cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), 1, np.pi / 180, 50, None, FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, 5)
+    lines=cv2.HoughLinesP(image=cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), rho=1, theta=np.pi / 180, threshold=int(FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX/4), minLineLength = FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, maxLineGap=6)
+    try:
+        x=len(lines)
+        #print('lines',x)
+    except:
+        lines=[]
+    return lines
 
-
-def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> list[float]:
+def anglecheck(t,tol): #checks if angle is close to 30* multiples
+    deg=np.pi/6
+    degrange=np.array([1,2,3,4,5,7,8,9,10,11]) #ignores 0,180,360
+    degrange=deg*degrange
+    intervals=[]
+    k=0
+    output=0
+    while k<len(degrange):
+        angle=degrange[k]
+        if t>angle-tol and t<angle+tol:
+            output=1
+            k=k+len(degrange)
+        k=k+1
+    return output
+        
+            
+        
+    
+    
+def get_angles(linelabels: list[np.ndarray[tuple[tuple[float, float, float, float]]],str]) -> list[[float,str]]:
     """
     Gets all angles within a given range of a multiple of 30 degrees (excluding 180 and 360) given a list of lines.
     :param lines: The lines to get angles from (from `HoughLinesP`, as tuples of [x1, y1, x2, y2]).
@@ -191,19 +223,20 @@ def get_angles(lines: np.ndarray[tuple[tuple[float, float, float, float]]]) -> l
     """
     ret = []
 
-    for i in range(0, len(lines)):
-        for j in range(i, len(lines)):
-            x11, y11, x21, y21 = lines[i][0]
-            x12, y12, x22, y22 = lines[j][0]
+    for i in range(0, len(linelabels)):
+        for j in range(i, len(linelabels)):
+            x11, y11, x21, y21 = linelabels[i][0][0]
+            x12, y12, x22, y22 = linelabels[j][0][0]
 
             # Calculate angle between lines
             t1 = np.arctan2(x21 - x11, y21 - y11)
             t2 = np.arctan2(x22 - x12, y22 - y12)
             t = (t2 - t1) % (2 * np.pi)
+            if anglecheck(t,FLAKE_ANGLE_TOLERANCE_RADS):
+                label=linelabels[i][1]+linelabels[j][1]
+                ret.append([t,label])
 
-            if t % (np.pi / 6) > FLAKE_ANGLE_TOLERANCE_RADS or t < (np.pi / 6) - FLAKE_ANGLE_TOLERANCE_RADS or t > 2 * np.pi - FLAKE_ANGLE_TOLERANCE_RADS:
+            else:
                 continue
-
-            ret.append(t)
-
     return ret
+        

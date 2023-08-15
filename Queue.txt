@@ -1,4 +1,2 @@
-InputDir: D:\Graphene\04_11_23_EC_1\04_11_23_EC_1\Scan 001\TileScan_001, OutputDir: D:\Graphene\04_11_23_EC_1\04_11_23_EC_1\MLScanned4\
-InputDir: D:\Graphene\05_23_23_EC_1\05_23_23_EC_1\Scan 001\TileScan_001, OutputDir: D:\Graphene\05_23_23_EC_1\05_23_23_EC_1\MLScanned4\
-InputDir: C:\04_03_23_EC_1\Scan 002\TileScan_001, OutputDir: C:\04_03_23_EC_1\MLScanned4\
-InputDir: D:\Graphene\04_14_23_EC_2\04_14_23_EC_2\Scan 002\TileScan_001, OutputDir: D:\Graphene\04_14_23_EC_2\04_14_23_EC_2\MLScanned4\
+InputDir: D:\04_03_23_EC_1\Scan 002\TileScan_001\, OutputDir: D:\04_03_23_EC_1\BLScanned\
+InputDir: D:\05_30_23_EC_1\Scan 002\TileScan_001\, OutputDir: D:\05_30_23_EC_1\BLScanned\

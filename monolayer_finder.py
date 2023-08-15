@@ -16,11 +16,11 @@ from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, mask_flake_color2, apply_morph_open, \
                             apply_morph_close, get_lines, is_edge_image, mask_bg
-from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles, get_flake_color
+from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles, get_flake_color, label_angles
 from util.logger import logger
 
 
-def run_file(img_filepath, output_dir, scan_pos_dict, dims):
+def run_file(img_filepath, output_dir, scan_pos_dict, dims, n_layer):
     tik = time.time()
 
     try:
@@ -55,13 +55,13 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         # Get monolayer color from background color
         back_rgb = get_avg_rgb(pixout)
         back_hsv = cv2.cvtColor(np.uint8([[back_rgb]]), cv2.COLOR_RGB2HSV)[0][0]
-        flake_avg_rgb = bg_to_flake_color(back_rgb)
+        flake_avg_rgb = bg_to_flake_color(back_rgb, n_layer)
         flake_avg_hsv = cv2.cvtColor(np.uint8([[flake_avg_rgb]]), cv2.COLOR_RGB2HSV)[0][0]  # TODO: hacky?
         
         # Mask image using thresholds and apply morph operations to reduce false positives
         start = time.time()
         #masked = mask_flake_color(img, flake_avg_hsv)
-        maskbg=mask_bg(img,back_rgb,back_hsv)
+        maskbg=mask_bg(img,back_rgb,back_hsv,n_layer)
         h,w=np.shape(maskbg)
         #cv2.imshow('mbg',cv2.resize(maskbg.astype(np.uint8), (int(w/4),int(h/4))))
         #cv2.waitKey(0)
@@ -75,6 +75,8 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         masked=masked.astype(np.uint8)
         dst = apply_morph_close(masked)
         dst = apply_morph_open(dst)
+        #cv2.imshow('m2',cv2.resize(dst.astype(np.uint8), (int(w/4),int(h/4))))
+        #cv2.waitKey(0)
         end = time.time()
         delay=round(end-start,3)
         logger.debug(f"Stage{stage} thresholded and transformed in {delay}s")
@@ -91,10 +93,12 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 
         # Make boxes and merge boxes that overlap
         start = time.time()
-        boxes = make_boxes(contours, hierarchy, img_h, img_w)
-       
-        boxes = merge_boxes(boxes)
-        boxes = merge_boxes(boxes)
+        [boxes,flake_rs] = make_boxes(contours, hierarchy, img_h, img_w)
+        if not boxes:
+            delay=round(time.time() - tik,3)
+            return logger.info(f"{stage} - rejected for no boxes(1) in {delay}s")
+        [boxes,flake_rs] = merge_boxes(boxes,flake_rs)
+        [boxes,flake_rs] = merge_boxes(boxes,flake_rs)
         end = time.time()
         
         delay=round(end-start,3)
@@ -110,7 +114,7 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         try:
             posy, posx = scan_pos_dict[int(yd), int(xd)]
             pos_str = "X:" + str(round(1000 * posx, 2)) + ", Y:" + str(round(1000 * posy, 2))
-        except IndexError:
+        except:
             logger.warn(f'Stage{stage} pos conversion failed!')
             pos_str = ""
 
@@ -121,10 +125,12 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
         img4 = img0.copy()
 
         max_area = 0 
-
+        i=0
         with open(output_dir + "Color Log.csv", "a+") as flake_log, \
              open(output_dir + "Edge Log.csv", "a+") as edge_log:
-            for box in boxes:
+            while i<len(boxes):
+                box=boxes[i]
+                flake_r=flake_rs[i]
                 img0 = draw_box(img0, box)
                 max_area = max(int(box.area), max_area)
 
@@ -132,15 +138,22 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
                     logger.debug('Drawing contour bounds...')
                     img4 = draw_box(img4, box)
                     img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
-
                     lines = get_lines(img4, box.contours)
-                    angles = draw_line_angles(img4, box, lines)
-
-                    if lines is not None:
-                        edge_log.write(f'{str(stage)},{" ".join(map(str, angles)) if len(angles) > 0 else "-"}')
+                    try:
+                        linelen=len(lines)
+                    except:
+                        linelen=0
+                    if linelen>0:
+                        labeledangles = draw_line_angles(img4, box, lines)
+                        degangles=['-']
+                        if len(labeledangles)>0:
+                            img4=label_angles(img4, labeledangles, box)
+                            degangles=[round(np.rad2deg(np.min([t[0],abs(t[0]-2*np.pi)])),1) for t in labeledangles]
+                        edge_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(int(len(lines)))},{" ".join(map(str, degangles))}')
+                        edge_log.write('\n')
                 real_flake_rgb=get_flake_color(img,flake_avg_rgb,box)
-                flake_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(real_flake_rgb[0])},{str(real_flake_rgb[1])},{str(real_flake_rgb[2])},{str(back_rgb[0])},{str(back_rgb[1])},{str(back_rgb[2])}\n')
-
+                flake_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(real_flake_rgb[0])},{str(real_flake_rgb[1])},{str(real_flake_rgb[2])},{str(back_rgb[0])},{str(back_rgb[1])},{str(back_rgb[2])},{str(int(flake_r))}\n')
+                i=i+1
         end = time.time()
         delay=round(end-start,3)
         logger.debug(f"Stage{stage} labelled images in {delay}s")
@@ -166,28 +179,41 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims):
 def main(args):
     print(args)
     config = load_queue(args.q)
-
+    n_layer=int(args.n)
     for input_dir, output_dir in config:
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(output_dir + "\\AreaSort\\", exist_ok=True)
 
-        input_files = [f for f in glob.glob(os.path.join(input_dir, "*")) if "Stage" in f]
+        input_files = [f for f in glob.glob(os.path.join(input_dir, "*")) if ("Stage" in f or "stage" in f)]
+        if len(input_files)==0:
+            input_files=[f for f in glob.glob(os.path.join(input_dir, "*"))]
         input_files.sort(key=len)
-
         # Write log file headers
         with open(output_dir + "Color Log.csv", "w+") as flake_log, \
              open(output_dir + "Edge Log.csv", "w+") as edge_log:
-            flake_log.write('N,A,Rf,Gf,Bf,Rw,Gw,Bw\n')
-            edge_log.write('N,T\n')
+            flake_log.write('N,A(um2),Rf,Gf,Bf,Rw,Gw,Bw,P*P/A\n')
+            edge_log.write('N,A(um2),Edgecount,theta(deg)\n')
 
         tik = time.time()
-        scanposdict = pos_get(input_dir)
-        dims = dim_get(input_dir)
+        try:
+            scanposdict = pos_get(input_dir)
+        except:
+            scanposdict=[]
+        try:
+            dims = dim_get(input_dir)
+        except:
+            dims=[1,1]
 
         n_proc = os.cpu_count() - threadsave
+        
         files = [
-            [f, output_dir, scanposdict, dims] for f in input_files
-            if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"]
+            [f, output_dir, scanposdict, dims,n_layer] for f in input_files
+            if (os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"])
+        ]
+        if len(files)==0:
+            files = [
+            [f, output_dir, scanposdict, dims,n_layer] for f in input_files
+            if (os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"] and os.path.splitext(f)[0].split('\\')[-1].isnumeric())
         ]
         print('Running '+input_dir)
         with Pool(n_proc) as pool:
@@ -197,8 +223,13 @@ def main(args):
 
         output_files = [
             f for f in glob.glob(os.path.join(output_dir, "*"))
-            if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"] and "Stage" in f
+            if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"] and ("Stage" in f or "stage" in f)
         ]
+        if len(output_files)==0:
+            output_files = [
+                f for f in glob.glob(os.path.join(output_dir, "*"))
+                if (os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"] and os.path.splitext(f)[0].split('\\')[-1].isnumeric())
+            ]
         filecount = len(output_files)
 
         with open(output_dir + "Summary.txt", "a+") as f:
@@ -223,14 +254,18 @@ def main(args):
 
         flake_data = np.loadtxt(output_dir + "Color Log.csv", skiprows=1, delimiter=',', unpack=True)
         if flake_data.size > 0:
-            N, A, Rf, Gf, Bf, Rw, Gw, Bw = flake_data
+            N, A, Rf, Gf, Bf, Rw, Gw, Bw , P= flake_data
 
             pairs = []
             i = 0
-            while i < len(A):
-                pair = np.array([N[i], A[i]])
+            try:
+                while i < len(A):
+                    pair = np.array([N[i], A[i]])
+                    pairs.append(pair)
+                    i = i + 1
+            except:
+                pair = np.array([N, A])
                 pairs.append(pair)
-                i = i + 1
 
             pairsort = sorted(pairs, key=lambda x: x[1], reverse=True)
             for pair in pairsort:
@@ -250,6 +285,12 @@ if __name__ == "__main__":
         type=str,
         default="Queue.txt",
         help="Directory containing images to process. Optional unless running in headless mode"
+    )
+    parser.add_argument(
+        "--n",
+        type=str,
+        default=1,
+        help="Target Number of Layers"
     )
     args = parser.parse_args()
     main(args)

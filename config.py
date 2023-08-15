@@ -10,18 +10,20 @@ k = 4
 # Detection parameters
 UM_TO_PX = 4.164
 
-FLAKE_MIN_AREA_UM2 = 100
+FLAKE_MIN_AREA_UM2 = 200
 t_color_match_count = 0.000225*FLAKE_MIN_AREA_UM2/200  # fraction of image that must look like monolayers
 FLAKE_MAX_AREA_UM2 = 6000
 
 FLAKE_MIN_EDGE_LENGTH_UM = 10
-FLAKE_ANGLE_TOLERANCE_RADS = np.deg2rad(2)
+FLAKE_ANGLE_TOLERANCE_RADS = np.deg2rad(4)
 
-FLAKE_R_CUTOFF = 80
+FLAKE_R_CUTOFF = 90
 
 # Morphology parameters
 OPEN_MORPH_SIZE = 2
-CLOSE_MORPH_SIZE = 3
+CLOSE_MORPH_SIZE = 6
+
+epsratio=0.05
 
 OPEN_MORPH_SHAPE = cv2.MORPH_RECT
 CLOSE_MORPH_SHAPE = cv2.MORPH_CROSS

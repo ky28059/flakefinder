@@ -6,7 +6,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 import numpy as np
 import re
 import argparse
-
+import os
 from util.logger import logger
 from util.queue import load_queue
 
@@ -67,8 +67,16 @@ def get_stage(path: str) -> int:
     Gets the stage number of a scan image given the file path.
     :param path: The file path (ex. `C:/.../TileScan_001--Stage250.jpg`)
     :return: The stage number (ex. `250`)
+    
     """
-    return int(re.search(r"Stage(\d{3,4})", path).group(1))
+    try:
+        stage=int(re.search(r"Stage(\d{3,4})", path).group(1))
+    except:
+        try:
+            stage=int(re.search(r"stage(\d{3,4})", path).group(1))
+        except:
+            stage=int(os.path.splitext(path)[0].split('\\')[-1])
+    return stage
 
 
 if __name__ == '__main__':
