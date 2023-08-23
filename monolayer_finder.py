@@ -10,13 +10,13 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-from config import threadsave, boundflag, t_color_match_count, UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, k, FONT
+from config import threadsave, boundflag, t_color_match_count, UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, k, FONT, COLOR_PASS_CUTOFF
 from util.queue import load_queue
 from util.leica import dim_get, pos_get, get_stage
 from util.plot import make_plot, location
 from util.processing import bg_to_flake_color, get_bg_pixels, get_avg_rgb, mask_flake_color, mask_flake_color2, apply_morph_open, \
                             apply_morph_close, get_lines, is_edge_image, mask_bg
-from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles, get_flake_color, label_angles
+from util.box import merge_boxes, make_boxes, draw_box, draw_line_angles, get_flake_color, label_angles, check_color_ratios, get_color_ratio
 from util.logger import logger
 
 
@@ -126,44 +126,58 @@ def run_file(img_filepath, output_dir, scan_pos_dict, dims, n_layer):
 
         max_area = 0 
         i=0
+        tagarr=['Total']
         with open(output_dir + "Color Log.csv", "a+") as flake_log, \
              open(output_dir + "Edge Log.csv", "a+") as edge_log:
+            
             while i<len(boxes):
                 box=boxes[i]
                 flake_r=flake_rs[i]
                 img0 = draw_box(img0, box)
                 max_area = max(int(box.area), max_area)
-
-                if boundflag:
-                    logger.debug('Drawing contour bounds...')
-                    img4 = draw_box(img4, box)
-                    img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
-                    lines = get_lines(img4, box.contours)
-                    try:
-                        linelen=len(lines)
-                    except:
-                        linelen=0
-                    if linelen>0:
-                        labeledangles = draw_line_angles(img4, box, lines)
-                        degangles=['-']
-                        if len(labeledangles)>0:
-                            img4=label_angles(img4, labeledangles, box)
-                            degangles=[round(np.rad2deg(np.min([t[0],abs(t[0]-2*np.pi)])),1) for t in labeledangles]
-                        edge_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(int(len(lines)))},{" ".join(map(str, degangles))}')
-                        edge_log.write('\n')
+                #print(flake_avg_rgb)
                 real_flake_rgb=get_flake_color(img,flake_avg_rgb,box)
-                flake_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(real_flake_rgb[0])},{str(real_flake_rgb[1])},{str(real_flake_rgb[2])},{str(back_rgb[0])},{str(back_rgb[1])},{str(back_rgb[2])},{str(int(flake_r))}\n')
+                #flake_ratio=get_color_ratio(img,box,real_flake_rgb,'sizecheck')
+                #print(stage,flake_ratio)
+                if 1:#flake_ratio>COLOR_PASS_CUTOFF:
+                #print(stage)
+                    tag=check_color_ratios(img4,box,back_rgb,real_flake_rgb)
+                    print(tag)
+                    if tag not in tagarr:
+                        tagarr.append(tag)
+                    if boundflag:
+                        logger.debug('Drawing contour bounds...')
+                        
+                        
+                        img4 = draw_box(img4, box)
+                        img4 = cv2.drawContours(img4, box.contours, -1, (255, 255, 255), 1)
+                        lines = get_lines(img4, box.contours)
+                        try:
+                            linelen=len(lines)
+                        except:
+                            linelen=0
+                        if linelen>0:
+                            labeledangles = draw_line_angles(img4, box, lines)
+                            degangles=['-']
+                            if len(labeledangles)>0:
+                                img4=label_angles(img4, labeledangles, box)
+                                degangles=[round(np.rad2deg(np.min([t[0],abs(t[0]-2*np.pi)])),1) for t in labeledangles]
+                            edge_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(int(len(lines)))},{" ".join(map(str, degangles))}')
+                            edge_log.write('\n')
+                    
+                    flake_log.write(f'{str(stage)},{str(int(box.area/UM_TO_PX**2))},{str(real_flake_rgb[0])},{str(real_flake_rgb[1])},{str(real_flake_rgb[2])},{str(back_rgb[0])},{str(back_rgb[1])},{str(back_rgb[2])},{str(int(flake_r))}\n')
+                
                 i=i+1
         end = time.time()
         delay=round(end-start,3)
         logger.debug(f"Stage{stage} labelled images in {delay}s")
-
+        
         start = time.time()
-        cv2.imwrite(os.path.join(output_dir, os.path.basename(img_filepath)), cv2.cvtColor(img0, cv2.COLOR_RGB2BGR))
-
-        if boundflag:
-            max_area=int(max_area/(UM_TO_PX)**2)#convert from pixels to um2
-            cv2.imwrite(os.path.join(output_dir + "\\AreaSort\\", str(max_area) + '_' + os.path.basename(img_filepath)), cv2.cvtColor(img4, cv2.COLOR_RGB2BGR))
+        for tag in tagarr:
+            cv2.imwrite(os.path.join(output_dir, tag, os.path.basename(img_filepath)), cv2.cvtColor(img0, cv2.COLOR_RGB2BGR))
+            if boundflag:
+                max_area=int(max_area/(UM_TO_PX)**2)#convert from pixels to um2
+                cv2.imwrite(os.path.join(output_dir, tag, "AreaSort", str(max_area) + '_' + os.path.basename(img_filepath)), cv2.cvtColor(img4, cv2.COLOR_RGB2BGR))
 
         end = time.time()
         delay=round(end-start,3)
@@ -181,8 +195,10 @@ def main(args):
     config = load_queue(args.q)
     n_layer=int(args.n)
     for input_dir, output_dir in config:
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(output_dir + "\\AreaSort\\", exist_ok=True)
+        taglist=['Total',"Bulk","Monolayer","Bilayer","Trilayer"]
+        for tag in taglist:
+            os.makedirs(os.path.join(output_dir, tag), exist_ok=True)
+            os.makedirs(os.path.join(output_dir, tag, "AreaSort"), exist_ok=True)
 
         input_files = [f for f in glob.glob(os.path.join(input_dir, "*")) if ("Stage" in f or "stage" in f)]
         if len(input_files)==0:
@@ -222,7 +238,7 @@ def main(args):
         tok = time.time()
 
         output_files = [
-            f for f in glob.glob(os.path.join(output_dir, "*"))
+            f for f in glob.glob(os.path.join(output_dir,"Total", "*"))
             if os.path.splitext(f)[1] in [".jpg", ".png", ".jpeg"] and ("Stage" in f or "stage" in f)
         ]
         if len(output_files)==0:

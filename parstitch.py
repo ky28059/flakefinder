@@ -191,7 +191,7 @@ def main(args):
         cv2.imwrite(os.path.join(output_dir, os.path.basename("stitched.jpg")), fstitch)
 
         if coordflag == 1:
-            imlist = np.loadtxt(output_dir + "Imlist.txt", skiprows=1)
+            imlist, areas = np.loadtxt(output_dir + "By Area.csv", unpack=True, skiprows=1, delimiter=",")
             fstitch2 = fstitch.copy()
 
             sh, sw, sc = fstitch.shape

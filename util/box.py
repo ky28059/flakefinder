@@ -3,9 +3,9 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB, epsratio
-from util.processing import in_bounds, get_angles, get_avg_rgb
-
+from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB, epsratio, COLOR_WINDOW, COLOR_RATIO_CUTOFF, COLOR_CHECK_OFFSETUM
+from util.processing import in_bounds, get_angles, get_avg_rgb, bg_to_flake_color, apply_morph_close
+from config import CLOSE_MORPH_SIZE, CLOSE_MORPH_SHAPE, MULTILAYER_FLAKE_MIN_AREA_UM2
 
 @dataclass
 class Box:
@@ -68,11 +68,11 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[list[Box],li
 
             # Move to next contour on same level as defined by hierarchy tree, if it exists
             child, _, _, _ = hierarchy[0][child]
-        approx=approxpolygon(cnt,epsratio)
-        img=np.zeros((img_h,img_w,3))
-        for i in range(len(approx)):
-            img=cv2.drawContours(img, [approx[i]], -1, (0,255,0), 3)
-        perimeter=cv2.arcLength(approx, True)
+        #approx=approxpolygon(cnt,epsratio)
+        #img=np.zeros((img_h,img_w,3))
+        #for i in range(len(approx)):
+            #img=cv2.drawContours(img, [approx[i]], -1, (0,255,0), 3)
+        #perimeter=cv2.arcLength(approx, True)
         
         if area < FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2):
             continue
@@ -80,8 +80,6 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[list[Box],li
             continue 
         flake_r=(perimeter ** 2) / area
         if  flake_r> FLAKE_R_CUTOFF:
-            print(flake_r)
-            print('ratio wrong')
             continue
 
         x, y, w, h = cv2.boundingRect(cnt)
@@ -209,3 +207,54 @@ def label_angles(img: np.ndarray, labeledangles: list[[float,str]], box: Box) ->
                         (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
                         FONT, 1, (0, 0, 0), 2, cv2.LINE_AA) 
     return img
+def get_color_ratio(img0:np.ndarray, b: Box, color: tuple[int,int,int], mode:str) ->float:
+    #print(color)
+    color=np.array(color)
+    h,w,c=img0.shape
+    if mode=='typecheck':
+        d=int(COLOR_CHECK_OFFSETUM*UM_TO_PX)
+    if mode=='sizecheck':
+        d=0
+    x1 = np.max([0,b.x-d])
+    x2 = np.min([b.x + b.width+d,w])
+    y1 = np.max([0,b.y-d])
+    y2 = np.min([b.y + b.height+d,h])
+    area=(y2-y1)*(x2-x1)
+    img=img0[y1:y2,x1:x2]
+    
+    maskrgb=cv2.inRange(img, color-np.array(COLOR_WINDOW), color+np.array(COLOR_WINDOW))
+    maskrgb=apply_morph_close(maskrgb,size=CLOSE_MORPH_SIZE, shape=CLOSE_MORPH_SHAPE)
+    #cv2.imshow('imc',maskrgb)
+    #cv2.waitKey(0)
+    masksum=np.sum(maskrgb)/255
+    
+    return masksum/area, area
+
+def check_color_ratios(img:np.ndarray, b: Box, back_rgb: tuple[int, int, int], real_flake_rgb: tuple[int, int, int]) -> str:
+    R1=COLOR_RATIO_CUTOFF
+    back_rgb=np.array(back_rgb)
+    real_flake_rgb=np.array(real_flake_rgb)
+    monolayer_rgb=real_flake_rgb
+    bilayer_rgb=bg_to_flake_color(back_rgb,2)
+    trilayer_rgb=bg_to_flake_color(back_rgb,3)
+    bg_ratio,area=get_color_ratio(img,b,back_rgb,'typecheck')
+    mono_ratio,area=get_color_ratio(img,b,monolayer_rgb,'typecheck')
+    bi_ratio,area=get_color_ratio(img,b,bilayer_rgb,'typecheck')
+    tri_ratio,area=get_color_ratio(img,b,trilayer_rgb,'typecheck')
+    remainder=1-bg_ratio-mono_ratio-bi_ratio-tri_ratio
+    print('BG','Mono','Bi','Tri','Other')
+    print(bg_ratio,mono_ratio,bi_ratio,tri_ratio,remainder)
+    img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    h,w,c=img.shape
+    Rmono=(FLAKE_MIN_AREA_UM2*UM_TO_PX**2)/area #making sure it's large enough
+    Rmult=(MULTILAYER_FLAKE_MIN_AREA_UM2*UM_TO_PX**2)/area
+    if remainder>R1:
+        return 'Bulk'
+    elif tri_ratio>Rmult:
+        return 'Trilayer'
+    elif bi_ratio>Rmult:
+        return 'Bilayer'
+    elif mono_ratio>R1 or mono_ratio>Rmono:
+        return 'Monolayer'
+    else:
+        return 'Bulk'

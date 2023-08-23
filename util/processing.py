@@ -23,6 +23,10 @@ def bg_to_flake_color(rgb: RGB, n_layer: int) -> FlakeRGB:
         flake_red = 0.8861*red-19.22
         flake_green = 0.9472*green-5.691
         flake_blue = 1.028*blue+3.368
+    elif n_layer==3:
+        flake_red=1.0119*red-46.61
+        flake_green=0.8887*green-4.851
+        flake_blue=1.045*blue+4.769
     return np.array([flake_red, flake_green, flake_blue])
 
 
@@ -53,6 +57,7 @@ def get_avg_rgb(img: np.ndarray, mask: np.ndarray[bool] = 1) -> RGB:
     
     return int(red_freq.argmax()), int(green_freq.argmax()), int(blue_freq.argmax())
 
+
 def mask_bg(img: np.ndarray, back_rgb: tuple[int, int, int], back_hsv: tuple[int, int, int], n_layer: int) -> np.ndarray:
     if n_layer==1:
         lowerrgb = (44, 15, 5)
@@ -65,11 +70,20 @@ def mask_bg(img: np.ndarray, back_rgb: tuple[int, int, int], back_hsv: tuple[int
         higherrgb = (26, 7, -11)
         lowerhsv = (66,-42,6)
         higherhsv = (-86,-86,-10)
+    if n_layer==3:
+        lowerrgb = (48, 24, -6)
+        higherrgb = (42, 14, -15)
+        lowerhsv = (56,-73,4)
+        higherhsv = (-80,-112,-12)
     maskrgb=cv2.inRange(img, tuple(map(int,  np.array(back_rgb) -lowerrgb)), tuple(map(int, np.array(back_rgb) -higherrgb)))
     img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     maskhsv=cv2.inRange(img_hsv, tuple(map(int,  np.array(back_hsv) - lowerhsv)), tuple(map(int, np.array(back_hsv) - higherhsv)))
     maskbg=maskrgb*maskhsv.astype(np.float32)/255
     return maskbg.astype(np.uint8)
+
+
+            
+    
 def mask_flake_color(img: np.ndarray, flake_avg_hsv: np.ndarray) -> np.ndarray:
     """
     Mask an image to black and white pixels based on whether it is within threshold of the given flake color, used by
@@ -239,4 +253,3 @@ def get_angles(linelabels: list[np.ndarray[tuple[tuple[float, float, float, floa
             else:
                 continue
     return ret
-        

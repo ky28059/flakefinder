@@ -8,16 +8,25 @@ boundflag = 1
 k = 4
 
 # Detection parameters
-UM_TO_PX = 4.164
+#UM_TO_PX = 4.164 #10x
+UM_TO_PX = 2.082 #5x
+
 
 FLAKE_MIN_AREA_UM2 = 200
+MULTILAYER_FLAKE_MIN_AREA_UM2 = 50
 t_color_match_count = 0.000225*FLAKE_MIN_AREA_UM2/200  # fraction of image that must look like monolayers
 FLAKE_MAX_AREA_UM2 = 6000
+
+
+COLOR_WINDOW=(6,6,6)
+COLOR_CHECK_OFFSETUM = 10
+COLOR_RATIO_CUTOFF=0.05 #fraction of imchunk +- offset that must look like a color to be counted for sorting purposes
+COLOR_PASS_CUTOFF=0.3 #fraction of imchunk that must look like flake to be passed on
 
 FLAKE_MIN_EDGE_LENGTH_UM = 10
 FLAKE_ANGLE_TOLERANCE_RADS = np.deg2rad(4)
 
-FLAKE_R_CUTOFF = 90
+FLAKE_R_CUTOFF = 80
 
 # Morphology parameters
 OPEN_MORPH_SIZE = 2
