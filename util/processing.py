@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
 
-from config import OPEN_MORPH_SIZE, CLOSE_MORPH_SIZE, OPEN_MORPH_SHAPE, CLOSE_MORPH_SHAPE, UM_TO_PX, \
-                   FLAKE_MIN_EDGE_LENGTH_UM, FLAKE_ANGLE_TOLERANCE_RADS, k
+from config import OPEN_MORPH_SIZES, CLOSE_MORPH_SIZES, OPEN_MORPH_SHAPE, CLOSE_MORPH_SHAPE, UM_TO_PXs, \
+                   FLAKE_MIN_EDGE_LENGTH_UM, FLAKE_ANGLE_TOLERANCE_RADS, k, maxlinegaps
 
 RGB = tuple[int, int, int]
 FlakeRGB = np.ndarray[int]
@@ -152,7 +152,8 @@ def mask_outer(img_hsv: np.ndarray, back_hsv: tuple[int, int, int]) -> np.ndarra
     )
 
 
-def apply_morph_open(masked: np.ndarray, size: int = OPEN_MORPH_SIZE, shape=OPEN_MORPH_SHAPE) -> np.ndarray:
+def apply_morph_open(masked: np.ndarray, magx: str, sizes=OPEN_MORPH_SIZES, shape=OPEN_MORPH_SHAPE) -> np.ndarray:
+    
     """
     Applies the "opening" morphological operation to a masked image to clear away small false-positive "islands".
     https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
@@ -162,11 +163,15 @@ def apply_morph_open(masked: np.ndarray, size: int = OPEN_MORPH_SIZE, shape=OPEN
     :param shape: The structuring element shape of the transform.
     :return: The black and white image, with the morph applied.
     """
+    if magx=='5x':
+        size=sizes[1]
+    elif magx=='10x':
+        size=sizes[0]
     element = cv2.getStructuringElement(shape, (2 * size + 1, 2 * size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_OPEN, element)
 
 
-def apply_morph_close(masked: np.ndarray, size: int = CLOSE_MORPH_SIZE, shape=CLOSE_MORPH_SHAPE) -> np.ndarray:
+def apply_morph_close(masked: np.ndarray, magx: str, sizes=CLOSE_MORPH_SIZES, shape=CLOSE_MORPH_SHAPE) -> np.ndarray:
     """
     Applies the "closing" morphological operation to a masked image to fill small "holes" in detected flakes.
     https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
@@ -176,6 +181,10 @@ def apply_morph_close(masked: np.ndarray, size: int = CLOSE_MORPH_SIZE, shape=CL
     :param shape: The structuring element shape of the transform.
     :return: The black and white image, with the morph applied.
     """
+    if magx=='5x':
+        size=sizes[1]
+    elif magx=='10x':
+        size=sizes[0]
     element = cv2.getStructuringElement(shape, (2 * size + 1, 2 * size + 1))
     return cv2.morphologyEx(masked, cv2.MORPH_CLOSE, element)
 
@@ -196,13 +205,18 @@ def in_bounds(x1: int, y1: int, x2: int, y2: int, w: int, h: int) -> bool:
     return x2 > delt * w and y2 > delt * h and x1 < (1 - delt) * w and y1 < (1 - delt) * h
 
 
-def get_lines(img: np.ndarray, contour):# -> np.ndarray[tuple[tuple[float, float, float, float]]] | None:
+def get_lines(img: np.ndarray, magx, contour):# -> np.ndarray[tuple[tuple[float, float, float, float]]] | None:
     mask = np.zeros(img.shape, np.uint8)
     mask = cv2.drawContours(mask, contour, -1, (255, 255, 255), 1)
-
+    if magx=='5x':
+        UM_TO_PX=UM_TO_PXs[1]
+        maxlinegap=maxlinegaps[1]
+    elif magx=='10x':
+        UM_TO_PX=UM_TO_PXs[0]
+        maxlinegap=maxlinegaps[0]
     # TODO: make the mask b&w to begin with
     # https://docs.opencv.org/3.4/d9/db0/tutorial_hough_lines.html
-    lines=cv2.HoughLinesP(image=cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), rho=1, theta=np.pi / 180, threshold=int(FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX/4), minLineLength = FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, maxLineGap=6)
+    lines=cv2.HoughLinesP(image=cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY), rho=1, theta=np.pi / 180, threshold=int(FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX/4), minLineLength = FLAKE_MIN_EDGE_LENGTH_UM * UM_TO_PX, maxLineGap=maxlinegap)
     try:
         x=len(lines)
         #print('lines',x)

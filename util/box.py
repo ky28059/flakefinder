@@ -3,9 +3,9 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from config import UM_TO_PX, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSET, BOX_THICKNESS, FONT, BOX_RGB, epsratio, COLOR_WINDOW, COLOR_RATIO_CUTOFF, COLOR_CHECK_OFFSETUM
+from config import UM_TO_PXs, FLAKE_MIN_AREA_UM2, FLAKE_MAX_AREA_UM2, FLAKE_R_CUTOFF, BOX_OFFSETS, BOX_THICKNESSES, FONT, BOX_RGB, epsratio, COLOR_WINDOW, COLOR_RATIO_CUTOFF, COLOR_CHECK_OFFSETUM
 from util.processing import in_bounds, get_angles, get_avg_rgb, bg_to_flake_color, apply_morph_close
-from config import CLOSE_MORPH_SIZE, CLOSE_MORPH_SHAPE, MULTILAYER_FLAKE_MIN_AREA_UM2
+from config import CLOSE_MORPH_SIZES, CLOSE_MORPH_SHAPE, MULTILAYER_FLAKE_MIN_AREA_UM2
 
 @dataclass
 class Box:
@@ -33,7 +33,7 @@ def approxpolygon(cnt,epsratio):
     approx=cv2.approxPolyDP(cnt,epsilon,True)
     return approx
 
-def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[list[Box],list[float]]:
+def make_boxes(contours, hierarchy, img_h: int, img_w: int, magx: str) -> list[list[Box],list[float]]:
     """
     Make boxes from contours, filtering out contours that are too small or completely contained by another image.
     :param contours: The contours to draw boxes from.
@@ -42,6 +42,10 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[list[Box],li
     :param img_w: The width of the image.
     :return: The list of boxes.
     """
+    if magx=='5x':
+        UM_TO_PX=UM_TO_PXs[1]
+    elif magx=='10x':
+        UM_TO_PX=UM_TO_PXs[0]
     boxes = []
     inner_indices = []
     flake_rs=[]
@@ -54,7 +58,6 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[list[Box],li
 
         area = cv2.contourArea(cnt)
 
-        
         perimeter = cv2.arcLength(cnt, True)
         # Subtract child contours to better represent area
         # https://docs.opencv.org/4.x/d9/d8b/tutorial_py_contours_hierarchy.html
@@ -70,10 +73,9 @@ def make_boxes(contours, hierarchy, img_h: int, img_w: int) -> list[list[Box],li
             child, _, _, _ = hierarchy[0][child]
         #approx=approxpolygon(cnt,epsratio)
         #img=np.zeros((img_h,img_w,3))
-        #for i in range(len(approx)):
-            #img=cv2.drawContours(img, [approx[i]], -1, (0,255,0), 3)
+        #for i in range(len(cnt)):
+            #img=cv2.drawContours(img, [cnt[i]], -1, (0,255,0), 3)
         #perimeter=cv2.arcLength(approx, True)
-        
         if area < FLAKE_MIN_AREA_UM2 * (UM_TO_PX ** 2):
             continue
         if area > FLAKE_MAX_AREA_UM2 * (UM_TO_PX ** 2):
@@ -129,22 +131,29 @@ def merge_boxes(boxes: list[Box], flake_rs: list) -> list[list[Box],list[float]]
     return [merged,merged_rs]
 
 
-def draw_box(img: np.ndarray, b: Box) -> np.ndarray:
+def draw_box(img: np.ndarray, b: Box, magx: str) -> np.ndarray:
     """
     Labels a box on an image, drawing the bounding rectangle and labelling the micron height and width.
     :param img: The image to label.
     :param b: The box to label.
     :return: The labelled image.
     """
-    pixcal = 1314.08 / img.shape[1]  # microns/pixel from Leica calibration
-
+    # microns/pixel from Leica calibration
+    if magx=='5x':
+        BOX_OFFSET=BOX_OFFSETS[1]
+        UM_TO_PX=UM_TO_PXs[1]
+        BOX_THICKNESS=BOX_THICKNESSES[1]
+    elif magx=='10x':
+        BOX_OFFSET=BOX_OFFSETS[0]
+        UM_TO_PX=UM_TO_PXs[0]
+        BOX_THICKNESS=BOX_THICKNESSES[0]
     x = int(b.x) - BOX_OFFSET
     y = int(b.y) - BOX_OFFSET
     w = int(b.width) + 2 * BOX_OFFSET
     h = int(b.height) + 2 * BOX_OFFSET
 
-    width_microns = int(round(w * pixcal, 0))
-    height_microns = int(round(h * pixcal, 0))  # microns
+    width_microns = int(round(w/UM_TO_PX, 0))
+    height_microns = int(round(h/UM_TO_PX, 0))  # microns
 
     img = cv2.rectangle(img, (x, y), (x + w, y + h), BOX_RGB, BOX_THICKNESS)
     img = cv2.putText(img, str(height_microns)+'um', (x + w + 10, y + int(h / 2)), FONT, 1, (0, 0, 0), 2, cv2.LINE_AA)
@@ -207,10 +216,14 @@ def label_angles(img: np.ndarray, labeledangles: list[[float,str]], box: Box) ->
                         (box.x + box.width + 10, box.y + int(box.height / 2) + (i + 1) * 35),
                         FONT, 1, (0, 0, 0), 2, cv2.LINE_AA) 
     return img
-def get_color_ratio(img0:np.ndarray, b: Box, color: tuple[int,int,int], mode:str) ->float:
+def get_color_ratio(img0:np.ndarray, b: Box, color: tuple[int,int,int], mode:str, magx: str) ->float:
     #print(color)
     color=np.array(color)
     h,w,c=img0.shape
+    if magx=='5x':
+        UM_TO_PX=UM_TO_PXs[1]
+    elif magx=='10x':
+        UM_TO_PX=UM_TO_PXs[0]
     if mode=='typecheck':
         d=int(COLOR_CHECK_OFFSETUM*UM_TO_PX)
     if mode=='sizecheck':
@@ -219,35 +232,39 @@ def get_color_ratio(img0:np.ndarray, b: Box, color: tuple[int,int,int], mode:str
     x2 = np.min([b.x + b.width+d,w])
     y1 = np.max([0,b.y-d])
     y2 = np.min([b.y + b.height+d,h])
-    area=(y2-y1)*(x2-x1)
+    barea=(y2-y1)*(x2-x1)
     img=img0[y1:y2,x1:x2]
     
     maskrgb=cv2.inRange(img, color-np.array(COLOR_WINDOW), color+np.array(COLOR_WINDOW))
-    maskrgb=apply_morph_close(maskrgb,size=CLOSE_MORPH_SIZE, shape=CLOSE_MORPH_SHAPE)
+    maskrgb=apply_morph_close(maskrgb,magx,sizes=CLOSE_MORPH_SIZES, shape=CLOSE_MORPH_SHAPE)
     #cv2.imshow('imc',maskrgb)
     #cv2.waitKey(0)
     masksum=np.sum(maskrgb)/255
     
-    return masksum/area, area
+    return masksum/barea, barea
 
-def check_color_ratios(img:np.ndarray, b: Box, back_rgb: tuple[int, int, int], real_flake_rgb: tuple[int, int, int]) -> str:
+def check_color_ratios(img:np.ndarray, b: Box, back_rgb: tuple[int, int, int], real_flake_rgb: tuple[int, int, int], magx: str) -> str:
+    if magx=='5x':
+        UM_TO_PX=UM_TO_PXs[1]
+    elif magx=='10x':
+        UM_TO_PX=UM_TO_PXs[0]
     R1=COLOR_RATIO_CUTOFF
     back_rgb=np.array(back_rgb)
     real_flake_rgb=np.array(real_flake_rgb)
     monolayer_rgb=real_flake_rgb
     bilayer_rgb=bg_to_flake_color(back_rgb,2)
     trilayer_rgb=bg_to_flake_color(back_rgb,3)
-    bg_ratio,area=get_color_ratio(img,b,back_rgb,'typecheck')
-    mono_ratio,area=get_color_ratio(img,b,monolayer_rgb,'typecheck')
-    bi_ratio,area=get_color_ratio(img,b,bilayer_rgb,'typecheck')
-    tri_ratio,area=get_color_ratio(img,b,trilayer_rgb,'typecheck')
+    bg_ratio,barea=get_color_ratio(img,b,back_rgb,'typecheck', magx)
+    mono_ratio,barea=get_color_ratio(img,b,monolayer_rgb,'typecheck', magx)
+    bi_ratio,barea=get_color_ratio(img,b,bilayer_rgb,'typecheck', magx)
+    tri_ratio,barea=get_color_ratio(img,b,trilayer_rgb,'typecheck', magx)
     remainder=1-bg_ratio-mono_ratio-bi_ratio-tri_ratio
     print('BG','Mono','Bi','Tri','Other')
     print(bg_ratio,mono_ratio,bi_ratio,tri_ratio,remainder)
     img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     h,w,c=img.shape
-    Rmono=(FLAKE_MIN_AREA_UM2*UM_TO_PX**2)/area #making sure it's large enough
-    Rmult=(MULTILAYER_FLAKE_MIN_AREA_UM2*UM_TO_PX**2)/area
+    Rmono=(FLAKE_MIN_AREA_UM2*UM_TO_PX**2)/barea #making sure it's large enough
+    Rmult=(MULTILAYER_FLAKE_MIN_AREA_UM2*UM_TO_PX**2)/barea
     if remainder>R1:
         return 'Bulk'
     elif tri_ratio>Rmult:

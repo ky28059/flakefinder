@@ -31,7 +31,16 @@ def pos_get(input_dir: str) -> np.ndarray[float]:
         pos_arr[int(yd), int(xd)] = np.array([float(posy), float(posx)])
 
     return pos_arr
-
+def mag_get(input_dir: str) -> str:
+    with open(input_dir + "/leicametadata/TileScan_001.xlif", 'r') as file:
+        rawdata = file.read()
+    rawdata=rawdata.split('ObjectiveName=')[1]
+    rawdata=rawdata.split('ObjectiveNumber')[0]
+    #print(rawdata)
+    if '5x' in rawdata:
+        return '5x'
+    elif '10x' in rawdata:
+        return '10x'
 
 def dim_get(input_dir: str) -> Dimensions:
     """
